@@ -339,3 +339,56 @@ body::before {
     flex: 1;
   }
 }
+
+
+/* ===== Study Paws V0.4 · Brain + orchestration ===== */
+.knowledge-card { gap: 12px; }
+.knowledge-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+.knowledge-label { font-weight: 700; }
+.knowledge-dots { display: flex; gap: 5px; }
+.knowledge-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--paper-2); color: var(--ink);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.knowledge-dot.on {
+  background: var(--pink-strong); color: white; border-color: var(--pink-strong);
+}
+.source-use { min-width: 116px; }
+.brain-plan-card {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--paper) 88%, var(--pink-soft));
+}
+.brain-plan-body { display: grid; gap: 12px; }
+.brain-plan-head p { margin: 4px 0 0; }
+.mini-stats, .knowledge-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.mini-stat {
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  border-radius: 14px;
+  display: grid;
+  gap: 2px;
+}
+.plan-warnings {
+  border-left: 3px solid var(--pink-strong);
+  padding-left: 10px;
+}
+.plan-warnings p { margin: 4px 0; }
+
+@media (max-width: 620px) {
+  .mini-stats, .knowledge-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .knowledge-row { grid-template-columns: 1fr; }
+  .knowledge-dots { justify-content: space-between; }
+  .knowledge-dot { flex: 1; border-radius: 12px; }
+  .file .fmeta .source-use { flex-basis: 100%; }
+}
