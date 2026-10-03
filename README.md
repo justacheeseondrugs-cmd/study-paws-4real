@@ -4,6 +4,10 @@ PWA mobile-first para estudiar (pensada para Medicina): materias, unidades, clas
 archivos adjuntos y guías de estudio. Esta versión **no usa IA ni backend**:
 todo se guarda en tu dispositivo y funciona offline tras la primera carga.
 
+## Funciones V0.2
+- Presets de estudio: General, Medicina Interna, Fisiología, Patología y Farmacología
+- Interfaz visual refinada y tarjetas de presets adaptables al móvil
+
 ## Funciones V0
 - Dashboard de materias (crear, renombrar, eliminar)
 - Unidades y clases dentro de cada materia, con check de "estudiada"
