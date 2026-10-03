@@ -220,6 +220,7 @@ export async function openExtractedText(meta) {
 
 export async function buildSourcePayload(metas = []) {
   return Promise.all(metas.map(async (f) => ({
+    id: f.id,
     name: f.name,
     type: f.type,
     textStatus: f.textStatus || '',
