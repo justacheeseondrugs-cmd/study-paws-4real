@@ -5,7 +5,7 @@ import {
   addSubject, renameSubject, deleteSubject, addUnit, renameUnit, deleteUnit,
   addLesson, renameLesson, deleteLesson, toggleLessonDone
 } from './subjects.js';
-import { FILE_TYPES, typeInfo, attachFiles, setFileType, setSourceUse, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload, ensureLessonIndexes } from './files.js';
+import { FILE_TYPES, typeInfo, attachFiles, setFileType, setSourceUse, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload, ensureLessonIndexes, buildLessonAlignments, getLessonAlignments } from './files.js';
 import { detectMaterialPairs } from './smart-class.js';
 import { inspectContext, contextToMarkdown } from './context-inspector.js';
 import { SOURCE_USE, sourceUseInfo } from './source-policy.js';
@@ -189,6 +189,16 @@ function smartClassCard(sid, unitId, lessonId, lesson) {
   const pairRows = pairs.map((p) =>
     h('li', {}, `📊 ${p.slideName} ↔ 🎙️ ${p.transcriptName} · confianza ${p.confidence}`));
 
+  const alignmentStatus = h('div', { class: 'muted' }, pairs.length ? 'Alineaciones todavía no preparadas.' : '');
+  getLessonAlignments(pairs).then((saved) => {
+    if (!pairs.length) return;
+    const pages = saved.reduce((n,a)=>n+(a.items?.length||0),0);
+    const strong = saved.reduce((n,a)=>n+(a.items||[]).reduce((m,item)=>m+(item.transcriptMatches||[]).filter(x=>x.confidence==='alta'||x.confidence==='media').length,0),0);
+    alignmentStatus.textContent = saved.length
+      ? `🔗 ${saved.length}/${pairs.length} pareja(s) alineadas · ${pages} diapositivas mapeadas · ${strong} vínculos útiles`
+      : '🔗 Alineación profunda pendiente.';
+  }).catch(()=>{});
+
   const prepareBtn = h('button', { class: 'btn ghost small', type: 'button' }, '🧩 Preparar clase');
   prepareBtn.addEventListener('click', async () => {
     if (!ready.length) return toast('Primero usa 🧠 Leer en al menos un documento');
@@ -205,6 +215,35 @@ function smartClassCard(sid, unitId, lessonId, lesson) {
     }
   });
 
+  const alignBtn = h('button', { class: 'btn ghost small', type: 'button' }, '🔗 Alinear PPT + transcripción');
+  alignBtn.disabled = !pairs.length;
+  alignBtn.addEventListener('click', async () => {
+    if (!pairs.length) return toast('No detecté una pareja presentación + transcripción');
+    const unread = pairs.some((p) => {
+      const a = lesson.files.find((f) => f.id === p.slideId);
+      const b = lesson.files.find((f) => f.id === p.transcriptId);
+      return a?.textStatus !== 'ready' || b?.textStatus !== 'ready';
+    });
+    if (unread) return toast('Primero usa 🧠 Leer en la presentación y la transcripción');
+
+    alignBtn.disabled = true;
+    alignBtn.textContent = '🐾 Alineando…';
+    try {
+      await ensureLessonIndexes(sid, unitId, lessonId, lesson.files || []);
+      const aligned = await buildLessonAlignments(sid, unitId, lessonId, pairs);
+      const pages = aligned.reduce((n,a)=>n+(a.items?.length||0),0);
+      const useful = aligned.reduce((n,a)=>n+(a.items||[]).reduce((m,item)=>m+(item.transcriptMatches||[]).filter(x=>x.confidence==='alta'||x.confidence==='media').length,0),0);
+      alignmentStatus.textContent = `🔗 ${aligned.length}/${pairs.length} pareja(s) alineadas · ${pages} diapositivas mapeadas · ${useful} vínculos útiles`;
+      toast(`Alineación lista: ${pages} diapositivas vinculadas con la transcripción 🔗`);
+    } catch (e) {
+      console.error(e);
+      toast(e.message || 'No se pudo alinear la clase');
+    } finally {
+      alignBtn.disabled = !pairs.length;
+      alignBtn.textContent = '🔗 Alinear PPT + transcripción';
+    }
+  });
+
   return h('div', { class: 'card form-grid smart-class-card' },
     h('div', {},
       h('h2', {}, '🧩 Smart Class'),
@@ -217,7 +256,8 @@ function smartClassCard(sid, unitId, lessonId, lesson) {
     pairRows.length
       ? h('details', { open: true }, h('summary', {}, 'PPT/PDF + transcripción'), h('ul', { class: 'sources' }, pairRows))
       : h('p', { class: 'muted' }, 'Si adjuntas una presentación y su transcripción, intentaré vincularlas automáticamente.'),
-    prepareBtn);
+    alignmentStatus,
+    h('div', { class: 'row gap wrap' }, prepareBtn, alignBtn));
 }
 
 function lessonView(sid, unitId, lessonId) {
@@ -440,10 +480,12 @@ function createView(query = '') {
     inspectBtn.textContent = '🐾 Preparando contexto…';
     try {
       const indexes = await ensureLessonIndexes(form.sid, form.unitId, form.lessonId, lesson.files || []);
+      const pairs = detectMaterialPairs(lesson.files || []);
+      const alignments = await getLessonAlignments(pairs);
       const ctx = inspectContext({
         subject, unit, lesson,
         preset: form.preset, mode: form.mode, focus: form.focus,
-        files: lesson.files || [], indexes
+        files: lesson.files || [], indexes, alignments
       });
       const markdown = contextToMarkdown(ctx, { brainLabel: presetInfo(form.preset).label });
       out.replaceChildren(h('div', { class: 'card form-grid context-inspector-card' },
