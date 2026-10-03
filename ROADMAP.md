@@ -21,7 +21,8 @@
 - [x] Índice local y recuperación selectiva
 - [x] Context Inspector sin API
 - [x] Procedencia de cada fragmento de contexto
-- [ ] Alineación profunda PPT/PDF + transcripción durante generación
+- [x] Alineación profunda PPT/PDF + transcripción preparada localmente
+- [ ] Usar alineación profunda durante la primera generación real con IA
 - [ ] Procedencia visible de cada afirmación en la guía final
 - [ ] Active recall desde la guía
 - [ ] Corrección diagnóstica
