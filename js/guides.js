@@ -20,6 +20,36 @@ export const DEPTHS = [
   { id: 'advanced', label: 'Avanzado' }
 ];
 
+export const STUDY_PRESETS = [
+  {
+    id: 'general', label: 'General', icon: '📚',
+    desc: 'Una guía equilibrada para cualquier asignatura.',
+    sections: ['Panorama general', 'Conceptos clave', 'Mecanismos', 'Aplicación', 'Resumen final']
+  },
+  {
+    id: 'interna', label: 'Medicina Interna', icon: '🩺',
+    desc: 'De la fisiopatología a la conducta clínica.',
+    sections: ['Mapa general', 'Fisiopatología', 'Clínica por mecanismos', 'Exámenes: qué / para qué / qué cambia', 'Tratamiento', 'Seguimiento y derivación', 'Defensa de repreguntas']
+  },
+  {
+    id: 'fisiologia', label: 'Fisiología', icon: '🫀',
+    desc: 'Entender mecanismos, regulación e integración.',
+    sections: ['Concepto central', 'Mecanismo paso a paso', 'Regulación y variables', 'Gráficos / relaciones', 'Integración clínica', 'Errores frecuentes']
+  },
+  {
+    id: 'patologia', label: 'Patología', icon: '🔬',
+    desc: 'Mecanismo + morfología + correlación clínica.',
+    sections: ['Definición y mecanismo', 'Etiología', 'Patogenia', 'Morfología macroscópica', 'Morfología microscópica', 'Correlación clínica', 'Trampas y diferenciales']
+  },
+  {
+    id: 'farmacologia', label: 'Farmacología', icon: '💊',
+    desc: 'Ordena mecanismo, uso seguro y datos de examen.',
+    sections: ['Mecanismo de acción', 'Indicaciones', 'Dosis / vía / intervalo', 'Farmacocinética', 'Efectos adversos', 'Contraindicaciones', 'Interacciones', 'Perlas de examen']
+  }
+];
+
+export const presetInfo = (id) => STUDY_PRESETS.find((p) => p.id === id) ?? STUDY_PRESETS[0];
+
 /* ---------- Proveedores ----------
  * Contrato: { id, label, generate(request) -> Promise<{ title, content }> }
  * request = { mode, depth, options:{mnemonics,summary}, subject, unit, lesson, files:[{name,type}] }
@@ -36,23 +66,20 @@ export const generateGuide = (request) => getActiveProvider().generate(request);
 const NOTE = '> 🧪 Contenido de demostración, generado sin IA. Cuando conectes un proveedor, aquí aparecerá contenido real basado en tus archivos.';
 
 const builders = {
-  complete: ({ topic, depth, options: o }) => [
-    `# Guía completa: ${topic}`, NOTE,
-    '## 1. Panorama general',
-    `Este apartado presenta una visión de conjunto de **${topic}** (nivel ${depth}). Aquí iría el contexto, la importancia clínica y cómo se relaciona con otros temas.`,
-    '## 2. Conceptos clave',
-    '- **Definición:** enunciado breve y preciso del concepto central.',
-    '- **Epidemiología:** frecuencia y factores de riesgo principales.',
-    '- **Estructuras / actores implicados:** lo que debes ubicar.',
-    '## 3. Mecanismos y fisiopatología',
-    '1. Estímulo o alteración inicial.',
-    '2. Respuesta del organismo.',
-    '3. Consecuencias y manifestaciones.',
-    '## 4. Correlación clínica',
-    'Cómo se presenta en el paciente, qué estudios piden y cómo se trata en líneas generales.',
-    ...(o.mnemonics ? ['## 5. Mnemotecnia', '> 🐾 Inventa una frase con las iniciales de los puntos clave: se recuerda mejor que una lista.'] : []),
-    ...(o.summary ? ['## Resumen final', '- Idea central en una frase.', '- Dato que más cae en examen.', '- Un caso típico para recordarlo.'] : [])
-  ],
+  complete: ({ topic, depth, options: o, preset }) => {
+    const route = (preset?.sections ?? presetInfo('general').sections)
+      .map((section, i) => `${i + 1}. **${section}** — aquí irá el desarrollo específico basado en tus fuentes.`);
+    return [
+      `# Guía completa: ${topic}`, NOTE,
+      `> 🐾 **Preset:** ${preset?.icon ?? '📚'} ${preset?.label ?? 'General'} · nivel ${depth}.`,
+      '## Ruta de estudio',
+      ...route,
+      '## Cómo se verá con IA',
+      'Study Paws usará esta estructura para integrar tus fuentes respetando su prioridad y el énfasis de la clase.',
+      ...(o.mnemonics ? ['## Mnemotecnia', '> 🐾 Aquí aparecerán mnemotecnias solo cuando aporten al aprendizaje.'] : []),
+      ...(o.summary ? ['## Resumen final', '- Idea central en una frase.', '- Dato que más cae en examen.', '- Punto que conviene repreguntar.'] : [])
+    ];
+  },
 
   slides: ({ topic, files }) => {
     const ppts = files.filter((f) => f.type === 'ppt');
@@ -141,7 +168,7 @@ registerProvider({
     await new Promise((r) => setTimeout(r, 600)); // simula latencia
     const topic = req.lesson?.name ?? req.unit?.name ?? req.subject.name;
     const depth = DEPTHS.find((d) => d.id === req.depth)?.label.toLowerCase() ?? 'intermedio';
-    const content = builders[req.mode]({ topic, depth, options: req.options, files: req.files }).join('\n\n');
+    const content = builders[req.mode]({ topic, depth, options: req.options, files: req.files, preset: presetInfo(req.preset) }).join('\n\n');
     return { title: `${modeInfo(req.mode).label} · ${topic}`, content };
   }
 });
