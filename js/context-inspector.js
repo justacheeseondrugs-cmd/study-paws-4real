@@ -6,7 +6,7 @@ export function inspectContext({subject,unit,lesson,preset,mode,focus='',files=[
     subject:subject?.name||'',unit:unit?.name||'',lesson:lesson?.name||'',
     preset,mode,focus
   });
-  return buildSmartClassContext({files,indexes,query,preset,mode});
+  return buildSmartClassContext({files,indexes,query,preset,mode,focused:Boolean(String(focus||'').trim())});
 }
 
 export function contextToMarkdown(ctx,{brainLabel='Study Paws Brain'}={}){
@@ -16,6 +16,7 @@ export function contextToMarkdown(ctx,{brainLabel='Study Paws Brain'}={}){
     `**Brain:** ${brainLabel}`,
     `**Consulta local:** ${ctx.query||'(sin consulta)'}`,
     `**Contexto seleccionado:** ~${ctx.estimatedTokens.toLocaleString('es-CL')} tokens`,
+    `**Estrategia:** ${ctx.strategy === 'first_slide_block' ? 'primer bloque real de ~5 diapositivas + apoyo relacionado' : 'recuperación local por relevancia'}`,
     ''
   ];
   if(ctx.pairs?.length){
