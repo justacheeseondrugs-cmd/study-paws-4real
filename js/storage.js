@@ -10,9 +10,10 @@ const subs = new Set();
 
 const defaults = () => ({
   version: 1,
-  settings: { theme: 'auto' },
+  settings: { theme: 'auto', brainVersion: '1.0' },
   subjects: [],
   guides: [],
+  knowledge: {},
   progress: { log: {} }
 });
 
@@ -25,6 +26,7 @@ function load() {
     return {
       ...d, ...data,
       settings: { ...d.settings, ...data.settings },
+      knowledge: { ...d.knowledge, ...(data.knowledge || {}) },
       progress: { ...d.progress, ...data.progress }
     };
   } catch (err) {
@@ -72,7 +74,7 @@ export function importData(json) {
     throw new Error('Archivo no válido');
   }
   const d = defaults();
-  state = { ...d, ...data, settings: { ...d.settings, ...data.settings }, progress: { ...d.progress, ...data.progress } };
+  state = { ...d, ...data, settings: { ...d.settings, ...data.settings }, knowledge: { ...d.knowledge, ...(data.knowledge || {}) }, progress: { ...d.progress, ...data.progress } };
   persist();
   notify();
 }
