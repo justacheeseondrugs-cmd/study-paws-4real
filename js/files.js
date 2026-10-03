@@ -40,6 +40,8 @@ export async function attachFiles(sid, unitId, lessonId, fileList, forcedType = 
       metas.push({
         id, name: f.name, size: f.size, mime: f.type,
         type: forcedType !== 'auto' ? forcedType : guessType(f.name),
+        sourceUse: 'auto',
+        sourceNote: '',
         addedAt: Date.now()
       });
     } catch (err) {
@@ -55,6 +57,15 @@ export function setFileType(sid, unitId, lessonId, fileId, type) {
   update(() => {
     const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
     if (f) f.type = type;
+  });
+}
+
+export function setSourceUse(sid, unitId, lessonId, fileId, sourceUse, sourceNote = '') {
+  update(() => {
+    const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+    if (!f) return;
+    f.sourceUse = sourceUse;
+    f.sourceNote = sourceNote;
   });
 }
 
@@ -125,6 +136,9 @@ export async function buildSourcePayload(metas = []) {
     type: f.type,
     textStatus: f.textStatus || '',
     textChars: f.textChars || 0,
+    textPages: f.textPages || 0,
+    sourceUse: f.sourceUse || 'auto',
+    sourceNote: f.sourceNote || '',
     canExtract: canExtractText({ type: f.mime }, f.name),
     text: f.textStatus === 'ready' ? await getExtractedText(f.id) : ''
   })));
