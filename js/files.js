@@ -81,6 +81,7 @@ export async function extractAndStoreText(sid, unitId, lessonId, fileId) {
         f.textChars = result.text.length;
         f.textEngine = result.engine;
         f.textPages = result.pages || 0;
+        if (f.type === 'other' && /\.pdf$/i.test(f.name)) f.type = 'pdf';
         f.textError = '';
       }
     });
