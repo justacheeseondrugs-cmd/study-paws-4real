@@ -3,6 +3,7 @@ import { update, newId, putBlob, getBlob, deleteBlob } from './storage.js';
 import { findLesson } from './subjects.js';
 import { extractTextFromFile, canExtractText } from './extract.js';
 import { buildDocumentIndex } from './study-retrieval.js';
+import { alignSlidesWithTranscript } from './smart-class.js';
 
 export const FILE_TYPES = [
   { id: 'ppt', label: 'PPT', icon: '📊' },
@@ -72,6 +73,7 @@ export function setSourceUse(sid, unitId, lessonId, fileId, sourceUse, sourceNot
 
 const textKey = (id) => `text:${id}`;
 const indexKey = (id) => `index:${id}`;
+const alignmentKey = (slideId, transcriptId) => `align:${slideId}:${transcriptId}`;
 
 async function storeDocumentIndex(fileId, meta, text) {
   const index = buildDocumentIndex({
@@ -215,6 +217,59 @@ export async function ensureLessonIndexes(sid, unitId, lessonId, metas = []) {
     }
   }
   return results.filter(Boolean);
+}
+
+export async function getPairAlignment(slideId, transcriptId) {
+  const blob = await getBlob(alignmentKey(slideId, transcriptId));
+  if (!blob) return null;
+  try {
+    const text = typeof blob === 'string' ? blob : await blob.text();
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+export async function buildPairAlignment(sid, unitId, lessonId, pair) {
+  const slideIndex = await ensureDocumentIndex(sid, unitId, lessonId, pair.slideId);
+  const transcriptIndex = await ensureDocumentIndex(sid, unitId, lessonId, pair.transcriptId);
+  const items = alignSlidesWithTranscript(slideIndex, transcriptIndex, { maxTranscriptChunks: 2 });
+  const alignment = {
+    version: 1,
+    slideId: pair.slideId,
+    transcriptId: pair.transcriptId,
+    slideName: pair.slideName,
+    transcriptName: pair.transcriptName,
+    pairConfidence: pair.confidence || '',
+    createdAt: Date.now(),
+    items
+  };
+  await putBlob(
+    alignmentKey(pair.slideId, pair.transcriptId),
+    new Blob([JSON.stringify(alignment)], { type: 'application/json' })
+  );
+  return alignment;
+}
+
+export async function buildLessonAlignments(sid, unitId, lessonId, pairs = []) {
+  const out = [];
+  for (const pair of pairs) {
+    try {
+      out.push(await buildPairAlignment(sid, unitId, lessonId, pair));
+    } catch (error) {
+      console.warn('No se pudo alinear la pareja', pair, error);
+    }
+  }
+  return out;
+}
+
+export async function getLessonAlignments(pairs = []) {
+  const out = [];
+  for (const pair of pairs) {
+    const saved = await getPairAlignment(pair.slideId, pair.transcriptId);
+    if (saved) out.push(saved);
+  }
+  return out;
 }
 
 export async function openExtractedText(meta) {
