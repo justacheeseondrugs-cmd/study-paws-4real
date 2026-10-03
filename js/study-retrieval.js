@@ -3,8 +3,8 @@
 // conserva procedencia, páginas/diapositivas y fragmentos de transcripción.
 
 const INDEX_VERSION = 1;
-const TRANSCRIPT_WORDS = 320;
-const TRANSCRIPT_OVERLAP = 60;
+const TRANSCRIPT_WORDS = 180;
+const TRANSCRIPT_OVERLAP = 35;
 const MAX_RESULTS = 12;
 const MAX_PER_SOURCE = 4;
 
