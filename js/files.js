@@ -5,6 +5,7 @@ import { extractTextFromFile, canExtractText } from './extract.js';
 
 export const FILE_TYPES = [
   { id: 'ppt', label: 'PPT', icon: '📊' },
+  { id: 'pdf', label: 'PDF / diapositivas', icon: '📄' },
   { id: 'transcript', label: 'Transcripción', icon: '🎙️' },
   { id: 'guide', label: 'Guía', icon: '📝' },
   { id: 'book', label: 'Libro', icon: '📚' },
@@ -16,6 +17,7 @@ export const typeInfo = (id) => FILE_TYPES.find((t) => t.id === id) ?? FILE_TYPE
 export function guessType(name = '') {
   const n = name.toLowerCase();
   if (/\.(pptx?|key|odp)$/.test(n)) return 'ppt';
+  if (/\.pdf$/.test(n)) return 'pdf';
   if (/transcrip|\.(vtt|srt)$/.test(n)) return 'transcript';
   if (/gu[ií]a|guide/.test(n)) return 'guide';
   if (/libro|book|cap[ií]tulo|\.epub$/.test(n)) return 'book';
@@ -78,6 +80,7 @@ export async function extractAndStoreText(sid, unitId, lessonId, fileId) {
         f.textStatus = 'ready';
         f.textChars = result.text.length;
         f.textEngine = result.engine;
+        f.textPages = result.pages || 0;
         f.textError = '';
       }
     });

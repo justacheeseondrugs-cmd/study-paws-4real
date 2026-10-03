@@ -1,7 +1,11 @@
 // Extracción local de texto para Study Paws.
-// Los archivos nunca se envían fuera del dispositivo en esta etapa.
+// DOCX y PDF se procesan en el navegador; no se envían fuera del dispositivo.
 const MAMMOTH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.10.0/mammoth.browser.min.js';
+const PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+
 let mammothPromise = null;
+let pdfjsPromise = null;
 
 function extension(name = '') {
   const i = name.lastIndexOf('.');
@@ -30,9 +34,58 @@ function loadMammoth() {
   return mammothPromise;
 }
 
+async function loadPdfJs() {
+  if (pdfjsPromise) return pdfjsPromise;
+  pdfjsPromise = import(PDFJS_URL).then((pdfjs) => {
+    pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+    return pdfjs;
+  }).catch((err) => {
+    pdfjsPromise = null;
+    console.error(err);
+    throw new Error('No se pudo cargar el lector PDF. Revisa tu conexión y vuelve a intentar.');
+  });
+  return pdfjsPromise;
+}
+
+async function extractPdf(file) {
+  const pdfjs = await loadPdfJs();
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjs.getDocument({ data }).promise;
+  const pages = [];
+  let totalChars = 0;
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const items = content.items || [];
+    let text = '';
+    let lastY = null;
+
+    for (const item of items) {
+      const str = item.str || '';
+      const y = item.transform?.[5] ?? null;
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 4) text += '\n';
+      else if (text && !text.endsWith('\n')) text += ' ';
+      text += str;
+      lastY = y;
+    }
+
+    text = cleanText(text);
+    totalChars += text.length;
+    pages.push(`[[STUDY_PAWS_PAGE:${pageNumber}]]\n${text || '[Sin texto extraíble en esta página]'}`);
+  }
+
+  const joined = pages.join('\n\n');
+  if (totalChars < 20) {
+    throw new Error('Este PDF parece ser escaneado o compuesto por imágenes. Necesitará OCR/visión en una etapa posterior.');
+  }
+
+  return { text: joined, engine: 'pdfjs', pages: pdf.numPages, warnings: [] };
+}
+
 export function canExtractText(file, name = file?.name || '') {
   const ext = extension(name);
-  return ['.docx', '.txt', '.md', '.csv', '.json', '.html', '.htm', '.vtt', '.srt'].includes(ext)
+  return ['.pdf', '.docx', '.txt', '.md', '.csv', '.json', '.html', '.htm', '.vtt', '.srt'].includes(ext)
     || /^text\//.test(file?.type || '');
 }
 
@@ -43,11 +96,12 @@ export async function extractTextFromFile(file, name = file?.name || '') {
   if (ext === '.doc') {
     throw new Error('El formato .doc antiguo todavía no se puede leer. Guárdalo como .docx.');
   }
-  if (ext === '.pdf') {
-    throw new Error('El lector PDF viene en la siguiente etapa. Por ahora usa DOCX o texto.');
-  }
   if (ext === '.ppt' || ext === '.pptx') {
-    throw new Error('El lector de PowerPoint viene después. Por ahora usa el DOC/tipeo de la clase.');
+    throw new Error('Para PowerPoint usa una copia exportada a PDF por ahora.');
+  }
+
+  if (ext === '.pdf' || file.type === 'application/pdf') {
+    return extractPdf(file);
   }
 
   if (ext === '.docx') {
@@ -64,5 +118,5 @@ export async function extractTextFromFile(file, name = file?.name || '') {
     return { text, engine: 'browser-text', warnings: [] };
   }
 
-  throw new Error('Todavía no sé leer este formato. Prueba con .docx, .txt o .md.');
+  throw new Error('Todavía no sé leer este formato. Prueba con PDF, DOCX, TXT o Markdown.');
 }

@@ -111,41 +111,51 @@ const builders = {
   },
 
   slides: ({ topic, files }) => {
-    const ppts = files.filter((f) => f.type === 'ppt');
+    const slideSources = files.filter((f) => ['ppt', 'pdf'].includes(f.type));
     const textSources = files.filter((f) => f.text?.trim());
+    const paged = textSources.find((f) => /\[\[STUDY_PAWS_PAGE:\d+\]\]/.test(f.text));
 
-    if (!ppts.length && textSources.length) {
-      const source = textSources[0];
-      const paras = source.text.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
-      const blockSize = Math.max(1, Math.ceil(paras.length / 6));
-      const blocks = [];
-      for (let i = 0; i < paras.length; i += blockSize) {
-        blocks.push(paras.slice(i, i + blockSize).join('\n\n'));
+    if (paged) {
+      const parts = paged.text.split(/\[\[STUDY_PAWS_PAGE:(\d+)\]\]/).slice(1);
+      const pages = [];
+      for (let i = 0; i < parts.length; i += 2) {
+        pages.push({ number: Number(parts[i]), text: (parts[i + 1] || '').trim() });
       }
       return [
-        `# Guía por bloques: ${topic}`,
-        '> 🧠 Study Paws ya está usando el texto REAL extraído de tu documento. Todavía falta conectar la IA para convertirlo en explicación médica completa.',
-        `**Fuente leída:** ${source.name} · ${source.text.length.toLocaleString('es-CL')} caracteres`,
-        ...blocks.slice(0, 6).flatMap((block, i) => [
-          `## Bloque ${i + 1}`,
-          block.slice(0, 1800),
-          '### Lo que hará la IA aquí',
-          '- Explicar el contenido con nivel de Medicina.',
-          '- Conectarlo con fisiopatología y clínica.',
-          '- Marcar puntos clave y trampas.',
-          '- Crear una pregunta posible y un mini-caso cuando corresponda.'
+        `# Diapositiva por diapositiva: ${topic}`,
+        '> 🧠 Study Paws está usando el texto REAL extraído de tu PDF. Todavía falta conectar la IA para transformar cada página en una explicación médica completa.',
+        `**Fuente:** ${paged.name} · ${pages.length} página(s) detectadas`,
+        ...pages.flatMap((p) => [
+          `## Diapositiva ${p.number}`,
+          p.text || '*Sin texto extraíble en esta página.*',
+          '### Próxima capa con IA',
+          '- ¿Qué quiere enseñar esta diapositiva?',
+          '- Explicación integrada con nivel de Medicina.',
+          '- Fisiopatología / farmacología cuando corresponda.',
+          '- Punto clave, trampa y posible pregunta del profesor.'
         ])
       ];
     }
 
-    const titles = ['Introducción y objetivos', 'Definiciones clave', 'Mecanismo / fisiopatología', 'Manifestaciones clínicas', 'Diagnóstico y tratamiento', 'Resumen y preguntas'];
+    if (textSources.length) {
+      const source = textSources[0];
+      const paras = source.text.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+      const blockSize = Math.max(1, Math.ceil(paras.length / 6));
+      const blocks = [];
+      for (let i = 0; i < paras.length; i += blockSize) blocks.push(paras.slice(i, i + blockSize).join('\n\n'));
+      return [
+        `# Guía por bloques: ${topic}`,
+        '> 🧠 Study Paws está usando texto REAL extraído de tu documento.',
+        `**Fuente leída:** ${source.name} · ${source.text.length.toLocaleString('es-CL')} caracteres`,
+        ...blocks.slice(0, 6).flatMap((block, i) => [`## Bloque ${i + 1}`, block.slice(0, 1800)])
+      ];
+    }
+
     return [
       `# Diapositiva por diapositiva: ${topic}`, NOTE,
-      ppts.length ? `PPT detectado: ${ppts.map((f) => f.name).join(', ')}. El lector de PowerPoint se añadirá después.` : 'No hay una fuente legible todavía. Usa 🧠 Leer documento en tu DOCX.',
-      ...titles.flatMap((t, i) => [
-        `## Diapositiva ${i + 1}: ${t}`,
-        '- Pendiente de lectura real de la fuente.'
-      ])
+      slideSources.length
+        ? `Fuente detectada: ${slideSources.map((f) => f.name).join(', ')}. Usa 🧠 Leer para extraer su contenido.`
+        : 'No hay una fuente legible todavía. Adjunta un PDF o DOCX y usa 🧠 Leer.',
     ];
   },
 
