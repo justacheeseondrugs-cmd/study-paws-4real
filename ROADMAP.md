@@ -17,8 +17,12 @@
 ## Próxima prioridad
 - [ ] Backend seguro para IA
 - [ ] Primera guía real: Farmacoterapia de IC
-- [ ] PPT/PDF + transcripción de la misma clase
-- [ ] Procedencia visible de cada afirmación
+- [x] Detección PPT/PDF + transcripción de la misma clase
+- [x] Índice local y recuperación selectiva
+- [x] Context Inspector sin API
+- [x] Procedencia de cada fragmento de contexto
+- [ ] Alineación profunda PPT/PDF + transcripción durante generación
+- [ ] Procedencia visible de cada afirmación en la guía final
 - [ ] Active recall desde la guía
 - [ ] Corrección diagnóstica
 - [ ] Modo rescate
