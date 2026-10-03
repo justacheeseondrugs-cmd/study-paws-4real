@@ -5,7 +5,7 @@ archivos adjuntos y guías de estudio. Esta versión **no usa IA ni backend**:
 todo se guarda en tu dispositivo y funciona offline tras la primera carga.
 
 ## Funciones V0.2
-- Presets de estudio: General, Medicina Interna, Fisiología, Patología y Farmacología
+- Presets de estudio: Medicina Interna (Materia), Medicina Interna (Práctica) y Farmacología
 - Interfaz visual refinada y tarjetas de presets adaptables al móvil
 
 ## Funciones V0
