@@ -2,7 +2,7 @@
 // Inspirado en la idea de retrieval de Inky Paws, adaptado a material académico:
 // conserva procedencia, páginas/diapositivas y fragmentos de transcripción.
 
-const INDEX_VERSION = 1;
+export const INDEX_VERSION = 2;
 const TRANSCRIPT_WORDS = 180;
 const TRANSCRIPT_OVERLAP = 35;
 const MAX_RESULTS = 12;
