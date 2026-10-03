@@ -102,3 +102,7 @@ Recomendaciones:
 3. Backend + proveedor de IA real.
 4. Repetición espaciada con las preguntas generadas.
 5. Cuentas y sincronización.
+
+---
+
+🚀 Study Paws V0 publicada desde el repositorio oficial.
