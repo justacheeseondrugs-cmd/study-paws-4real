@@ -140,3 +140,16 @@ La PWA prepara el contexto antes de usar IA:
 - el futuro prompt builder recibe fragmentos seleccionados, no documentos completos por defecto.
 
 El índice y la recuperación funcionan localmente en el navegador.
+
+
+## Deep Alignment V0.5.1
+
+Smart Class ahora puede construir y guardar un mapa local:
+
+- diapositiva/página → fragmentos relevantes de la transcripción;
+- confianza alta / media / baja por vínculo;
+- orden secuencial favorecido para respetar el avance real de la clase;
+- fragmentos de transcripción más finos para una alineación más precisa;
+- mapa visible antes de gastar API;
+- Context Inspector prioriza la transcripción ya alineada con cada slide;
+- índices y alineaciones antiguos se regeneran automáticamente cuando cambia el algoritmo.
