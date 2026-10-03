@@ -318,3 +318,24 @@ body::before {
   .hero { align-items: flex-start; }
   .hero-cat { width: 64px; }
 }
+
+
+/* V0.3.1 · acciones de archivo visibles en móvil */
+.file .fmeta {
+  flex-wrap: wrap;
+}
+.file .fmeta select {
+  min-width: min(100%, 180px);
+}
+.file-read-btn {
+  white-space: nowrap;
+  box-shadow: none;
+}
+@media (max-width: 520px) {
+  .file .fmeta select {
+    flex-basis: 100%;
+  }
+  .file .fmeta .file-read-btn {
+    flex: 1;
+  }
+}

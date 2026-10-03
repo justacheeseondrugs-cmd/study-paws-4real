@@ -1,14 +1,13 @@
-// Service worker: precache del "app shell" + stale-while-revalidate.
-// Sube VERSION cada vez que despliegues cambios.
-const VERSION = 'v0.3.0';
+// Study Paws service worker · network-first for app code to avoid stale versions.
+const VERSION = 'v0.3.1';
 const CACHE = `study-paws-${VERSION}`;
 
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './css/app.css',
-  './js/app.js',
+  './css/app.css?v=0.3.1',
+  './js/app.js?v=0.3.1',
   './js/ui.js',
   './js/storage.js',
   './js/subjects.js',
@@ -20,15 +19,13 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('study-paws-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -37,17 +34,27 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
 
-  e.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(req, { ignoreSearch: true });
-    const network = fetch(req)
-      .then((res) => { if (res.ok) cache.put(req, res.clone()); return res; })
-      .catch(() => null);
+  const url = new URL(req.url);
+  const isAppCode = req.mode === 'navigate' || /\.(?:js|css|html|webmanifest)$/.test(url.pathname);
 
-    if (cached) { e.waitUntil(network); return cached; }
-    const res = await network;
-    if (res) return res;
-    if (req.mode === 'navigate') return cache.match('./index.html');
-    return new Response('Sin conexión', { status: 503 });
-  })());
+  if (isAppCode) {
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      try {
+        const res = await fetch(req, { cache: 'no-store' });
+        if (res.ok) cache.put(req, res.clone());
+        return res;
+      } catch {
+        return (await cache.match(req)) || (req.mode === 'navigate' ? cache.match('./index.html') : new Response('Sin conexión', { status: 503 }));
+      }
+    })());
+    return;
+  }
+
+  e.respondWith(
+    caches.match(req).then((cached) => cached || fetch(req).then((res) => {
+      if (res.ok) caches.open(CACHE).then((c) => c.put(req, res.clone()));
+      return res;
+    }))
+  );
 });

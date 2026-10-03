@@ -210,15 +210,22 @@ function fileRow(sid, unitId, lessonId, f) {
         FILE_TYPES.map((x) => h('option', { value: x.id, selected: x.id === f.type }, `${x.icon} ${x.label}`))),
       iconBtn('👁️', 'Abrir', () => openFile(f).catch(() => toast('No se pudo abrir el archivo'))),
       f.textStatus === 'ready'
-        ? iconBtn('🔎', `Ver texto leído (${f.textChars || 0} caracteres)`, () => openExtractedText(f).catch((e) => toast(e.message)))
-        : iconBtn('🧠', f.textStatus === 'reading' ? 'Leyendo…' : 'Leer documento', async () => {
-            try {
-              const r = await extractAndStoreText(sid, unitId, lessonId, f.id);
-              toast(`Documento leído: ${r.chars.toLocaleString('es-CL')} caracteres 🐾`);
-            } catch (e) {
-              toast(e.message || 'No se pudo leer el documento');
+        ? h('button', { class: 'btn ghost small file-read-btn', type: 'button',
+            title: `Ver texto leído (${f.textChars || 0} caracteres)`,
+            onClick: () => openExtractedText(f).catch((e) => toast(e.message))
+          }, '🔎 Ver texto')
+        : h('button', { class: 'btn ghost small file-read-btn', type: 'button',
+            disabled: f.textStatus === 'reading',
+            title: f.textStatus === 'error' ? (f.textError || 'Reintentar lectura') : 'Extraer texto del documento',
+            onClick: async () => {
+              try {
+                const r = await extractAndStoreText(sid, unitId, lessonId, f.id);
+                toast(`Documento leído: ${r.chars.toLocaleString('es-CL')} caracteres 🐾`);
+              } catch (e) {
+                toast(e.message || 'No se pudo leer el documento');
+              }
             }
-          }),
+          }, f.textStatus === 'reading' ? '🐾 Leyendo…' : f.textStatus === 'error' ? '🧠 Reintentar' : '🧠 Leer'),
       iconBtn('🗑️', 'Quitar', async () => {
         if (await confirmDialog({ title: `¿Quitar "${f.name}"?`, confirm: 'Quitar', danger: true })) removeFile(sid, unitId, lessonId, f.id);
       })));
@@ -502,7 +509,7 @@ function settingsView() {
           await resetAll(); go('#/'); toast('Datos borrados');
         }
       } }, '🗑️ Borrar todos los datos')),
-    h('p', { class: 'muted' }, 'Study Paws V0 · sin cuentas, sin servidor, sin IA.'));
+    h('p', { class: 'muted' }, 'Study Paws V0.3.1 · lectura local de DOCX · sin IA todavía.'));
 }
 
 /* ================= Router ================= */
