@@ -2,6 +2,7 @@
 import { update, newId, putBlob, getBlob, deleteBlob } from './storage.js';
 import { findLesson } from './subjects.js';
 import { extractTextFromFile, canExtractText } from './extract.js';
+import { buildDocumentIndex } from './study-retrieval.js';
 
 export const FILE_TYPES = [
   { id: 'ppt', label: 'PPT', icon: '📊' },
@@ -70,6 +71,19 @@ export function setSourceUse(sid, unitId, lessonId, fileId, sourceUse, sourceNot
 }
 
 const textKey = (id) => `text:${id}`;
+const indexKey = (id) => `index:${id}`;
+
+async function storeDocumentIndex(fileId, meta, text) {
+  const index = buildDocumentIndex({
+    fileId,
+    name: meta.name,
+    type: meta.type,
+    text,
+    textPages: meta.textPages || 0
+  });
+  await putBlob(indexKey(fileId), new Blob([JSON.stringify(index)], { type: 'application/json' }));
+  return index;
+}
 
 export async function extractAndStoreText(sid, unitId, lessonId, fileId) {
   const meta = findLesson(sid, unitId, lessonId)?.files.find((f) => f.id === fileId);
@@ -94,9 +108,21 @@ export async function extractAndStoreText(sid, unitId, lessonId, fileId) {
         f.textPages = result.pages || 0;
         if (f.type === 'other' && /\.pdf$/i.test(f.name)) f.type = 'pdf';
         f.textError = '';
+        f.indexStatus = 'building';
       }
     });
-    return { chars: result.text.length, engine: result.engine };
+
+    const freshMeta = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId) || meta;
+    const index = await storeDocumentIndex(fileId, freshMeta, result.text);
+    update(() => {
+      const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+      if (f) {
+        f.indexStatus = 'ready';
+        f.indexVersion = index.version;
+        f.chunkCount = index.chunkCount;
+      }
+    });
+    return { chars: result.text.length, engine: result.engine, chunks: index.chunkCount };
   } catch (err) {
     update(() => {
       const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
@@ -114,6 +140,68 @@ export async function getExtractedText(fileId) {
   if (!blob) return '';
   if (typeof blob === 'string') return blob;
   return typeof blob.text === 'function' ? blob.text() : String(blob);
+}
+
+export async function getDocumentIndex(fileId) {
+  const blob = await getBlob(indexKey(fileId));
+  if (!blob) return null;
+  try {
+    const text = typeof blob === 'string' ? blob : await blob.text();
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureDocumentIndex(sid, unitId, lessonId, fileId) {
+  const meta = findLesson(sid, unitId, lessonId)?.files.find((f) => f.id === fileId);
+  if (!meta) throw new Error('Archivo no encontrado');
+  if (meta.textStatus !== 'ready') throw new Error('Primero lee el documento');
+
+  const existing = await getDocumentIndex(fileId);
+  if (existing?.version === 1 && existing?.chunkCount >= 0) {
+    if (meta.indexStatus !== 'ready' || meta.chunkCount !== existing.chunkCount) {
+      update(() => {
+        const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+        if (f) {
+          f.indexStatus = 'ready';
+          f.indexVersion = existing.version;
+          f.chunkCount = existing.chunkCount;
+        }
+      });
+    }
+    return existing;
+  }
+
+  const text = await getExtractedText(fileId);
+  if (!text) throw new Error('No hay texto extraído para indexar');
+  update(() => {
+    const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+    if (f) f.indexStatus = 'building';
+  });
+  const index = await storeDocumentIndex(fileId, meta, text);
+  update(() => {
+    const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+    if (f) {
+      f.indexStatus = 'ready';
+      f.indexVersion = index.version;
+      f.chunkCount = index.chunkCount;
+    }
+  });
+  return index;
+}
+
+export async function ensureLessonIndexes(sid, unitId, lessonId, metas = []) {
+  const ready = metas.filter((f) => f.textStatus === 'ready' && f.sourceUse !== 'exclude');
+  const results = [];
+  for (const f of ready) {
+    try {
+      results.push(await ensureDocumentIndex(sid, unitId, lessonId, f.id));
+    } catch (error) {
+      results.push(null);
+    }
+  }
+  return results.filter(Boolean);
 }
 
 export async function openExtractedText(meta) {
@@ -137,6 +225,8 @@ export async function buildSourcePayload(metas = []) {
     textStatus: f.textStatus || '',
     textChars: f.textChars || 0,
     textPages: f.textPages || 0,
+    indexStatus: f.indexStatus || '',
+    chunkCount: f.chunkCount || 0,
     sourceUse: f.sourceUse || 'auto',
     sourceNote: f.sourceNote || '',
     canExtract: canExtractText({ type: f.mime }, f.name),
@@ -149,7 +239,7 @@ export async function removeFile(sid, unitId, lessonId, fileId) {
     const l = findLesson(sid, unitId, lessonId);
     if (l) l.files = l.files.filter((f) => f.id !== fileId);
   });
-  await Promise.allSettled([deleteBlob(fileId), deleteBlob(textKey(fileId))]);
+  await Promise.allSettled([deleteBlob(fileId), deleteBlob(textKey(fileId)), deleteBlob(indexKey(fileId))]);
 }
 
 export async function openFile(meta) {
