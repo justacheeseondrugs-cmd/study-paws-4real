@@ -56,16 +56,46 @@ export function buildStudyQuery({subject='',unit='',lesson='',preset='',mode='',
   return [subject,unit,lesson,preset.replaceAll('_',' '),mode,focus].filter(Boolean).join(' ');
 }
 
-export function buildSmartClassContext({files=[],indexes=[],query='',preset='interna_materia',mode='complete'}={}){
+export function buildSmartClassContext({
+  files=[],indexes=[],query='',preset='interna_materia',mode='complete',focused=false
+}={}){
   const pairs=detectMaterialPairs(files);
   const pageMode=mode==='slides';
-  const selected=retrieveRelevantChunks(indexes,query,{
-    maxResults:pageMode?16:12,
-    maxPerSource:pageMode?6:4
-  });
+  let selected=[];
+  let strategy='smart_retrieval';
+
+  // Para una guía completa slide-by-slide, el futuro backend trabajará por bloques.
+  // El inspector muestra el PRIMER bloque real (5 slides) + transcripción relacionada,
+  // en vez de fingir que enviaría las 41 páginas juntas.
+  if(pageMode&&!focused){
+    const slideIndex=indexes.find(idx=>SLIDE_TYPES.has(idx?.type)&&idx?.kind==='paged');
+    if(slideIndex){
+      const firstSlides=(slideIndex.chunks||[]).slice(0,5).map(c=>({
+        ...c,sourceName:slideIndex.name,sourceType:slideIndex.type,score:999
+      }));
+      selected.push(...firstSlides);
+      strategy='first_slide_block';
+
+      const pair=pairs.find(p=>p.slideId===slideIndex.fileId);
+      const transcriptIndex=pair?indexes.find(idx=>idx?.fileId===pair.transcriptId):null;
+      if(transcriptIndex&&firstSlides.length){
+        const q=firstSlides.map(c=>[c.title,c.text].filter(Boolean).join(' ')).join(' ');
+        const related=retrieveRelevantChunks([transcriptIndex],q,{maxResults:4,maxPerSource:4});
+        selected.push(...related);
+      }
+    }
+  }
+
+  if(!selected.length){
+    selected=retrieveRelevantChunks(indexes,query,{
+      maxResults:pageMode?16:12,
+      maxPerSource:pageMode?6:4
+    });
+  }
+
   const selectedChars=selected.reduce((n,c)=>n+String(c.text||'').length,0);
   return {
-    preset,mode,query,pairs,selected,
+    preset,mode,query,pairs,selected,strategy,
     selectedChars,estimatedTokens:Math.ceil(selectedChars/4),
     provenance:selected.map(c=>({
       sourceName:c.sourceName,sourceType:c.sourceType,page:c.page||null,
