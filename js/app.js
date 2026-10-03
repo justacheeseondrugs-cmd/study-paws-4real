@@ -692,7 +692,7 @@ function settingsView() {
           await resetAll(); go('#/'); toast('Datos borrados');
         }
       } }, '🗑️ Borrar todos los datos')),
-    h('p', { class: 'muted' }, 'Study Paws V0.4.0 · Brain + planificación de contexto · sin IA todavía.'));
+    h('p', { class: 'muted' }, 'Study Paws V0.5.0 · Smart Class Engine + Context Inspector · sin IA todavía.'));
 }
 
 /* ================= Router ================= */
