@@ -7,7 +7,7 @@ import {
 } from './subjects.js';
 import { FILE_TYPES, typeInfo, attachFiles, setFileType, removeFile, openFile, formatSize } from './files.js';
 import {
-  GUIDE_MODES, DEPTHS, modeInfo, generateGuide, saveGuide, updateGuide, deleteGuide, findGuide, listGuides
+  GUIDE_MODES, DEPTHS, STUDY_PRESETS, presetInfo, modeInfo, generateGuide, saveGuide, updateGuide, deleteGuide, findGuide, listGuides
 } from './guides.js';
 import { h, md, toast, promptDialog, confirmDialog, catSvg } from './ui.js';
 
@@ -225,6 +225,7 @@ function createView(query = '') {
     sid: findSubject(q.get('s')) ? q.get('s') : subs[0].id,
     unitId: q.get('u') || '', lessonId: q.get('l') || '',
     mode: GUIDE_MODES.some((m) => m.id === q.get('m')) ? q.get('m') : 'complete',
+    preset: STUDY_PRESETS.some((p) => p.id === q.get('p')) ? q.get('p') : 'general',
     depth: 'intermediate', mnemonics: true, summary: true
   };
   if (!findUnit(form.sid, form.unitId)) { form.unitId = ''; form.lessonId = ''; }
@@ -257,7 +258,14 @@ function createView(query = '') {
   unitSel.addEventListener('change', () => { form.unitId = unitSel.value; form.lessonId = ''; fill(); });
   lessonSel.addEventListener('change', () => { form.lessonId = lessonSel.value; renderSources(); });
 
-  const modeGrid = h('div', { class: 'mode-grid', role: 'radiogroup', 'aria-label': 'Modo de guía' },
+  const presetGrid = h('div', { class: 'preset-grid', role: 'radiogroup', 'aria-label': 'Preset de estudio' },
+    STUDY_PRESETS.map((p) => h('label', { class: 'preset-chip' },
+      h('input', { type: 'radio', name: 'preset', value: p.id, checked: p.id === form.preset, onChange: () => { form.preset = p.id; } }),
+      h('span', { class: 'preset-body' },
+        h('span', { class: 'preset-icon' }, p.icon),
+        h('span', {}, h('strong', {}, p.label), h('small', {}, p.desc))))));
+
+    const modeGrid = h('div', { class: 'mode-grid', role: 'radiogroup', 'aria-label': 'Modo de guía' },
     GUIDE_MODES.map((m) => h('label', { class: 'mode-chip' },
       h('input', { type: 'radio', name: 'mode', value: m.id, checked: m.id === form.mode, onChange: () => { form.mode = m.id; } }),
       h('span', { class: 'mode-body' }, h('span', { class: 'mode-icon' }, m.icon), h('strong', {}, m.label), h('small', {}, m.desc)))));
@@ -278,7 +286,7 @@ function createView(query = '') {
       const unit = findUnit(form.sid, form.unitId);
       const lesson = findLesson(form.sid, form.unitId, form.lessonId);
       const result = await generateGuide({
-        mode: form.mode, depth: form.depth, options: { mnemonics: form.mnemonics, summary: form.summary },
+        mode: form.mode, preset: form.preset, depth: form.depth, options: { mnemonics: form.mnemonics, summary: form.summary },
         subject: { id: subject.id, name: subject.name },
         unit: unit ? { id: unit.id, name: unit.name } : null,
         lesson: lesson ? { id: lesson.id, name: lesson.name } : null,
@@ -324,6 +332,9 @@ function createView(query = '') {
         h('label', { class: 'field' }, 'Unidad', unitSel),
         h('label', { class: 'field' }, 'Clase', lessonSel)),
       sourcesBox),
+    h('div', { class: 'card form-grid preset-section' },
+      h('div', {}, h('h2', {}, 'Cómo quieres estudiar'), h('p', { class: 'muted' }, 'El preset cambia la estructura de la guía según la asignatura.')),
+      presetGrid),
     h('div', { class: 'card form-grid' }, h('h2', {}, 'Modo de guía'), modeGrid),
     h('div', { class: 'card form-grid' },
       h('h2', {}, 'Opciones'),
