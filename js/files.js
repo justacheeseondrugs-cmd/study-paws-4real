@@ -113,16 +113,29 @@ export async function extractAndStoreText(sid, unitId, lessonId, fileId) {
     });
 
     const freshMeta = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId) || meta;
-    const index = await storeDocumentIndex(fileId, freshMeta, result.text);
-    update(() => {
-      const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
-      if (f) {
-        f.indexStatus = 'ready';
-        f.indexVersion = index.version;
-        f.chunkCount = index.chunkCount;
-      }
-    });
-    return { chars: result.text.length, engine: result.engine, chunks: index.chunkCount };
+    let index = null;
+    try {
+      index = await storeDocumentIndex(fileId, freshMeta, result.text);
+      update(() => {
+        const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+        if (f) {
+          f.indexStatus = 'ready';
+          f.indexVersion = index.version;
+          f.chunkCount = index.chunkCount;
+          f.indexError = '';
+        }
+      });
+    } catch (indexErr) {
+      console.warn('Texto leído, pero no se pudo indexar', meta.name, indexErr);
+      update(() => {
+        const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+        if (f) {
+          f.indexStatus = 'error';
+          f.indexError = indexErr?.message || 'No se pudo indexar';
+        }
+      });
+    }
+    return { chars: result.text.length, engine: result.engine, chunks: index?.chunkCount || 0 };
   } catch (err) {
     update(() => {
       const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
