@@ -5,7 +5,9 @@ import {
   addSubject, renameSubject, deleteSubject, addUnit, renameUnit, deleteUnit,
   addLesson, renameLesson, deleteLesson, toggleLessonDone
 } from './subjects.js';
-import { FILE_TYPES, typeInfo, attachFiles, setFileType, setSourceUse, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload } from './files.js';
+import { FILE_TYPES, typeInfo, attachFiles, setFileType, setSourceUse, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload, ensureLessonIndexes } from './files.js';
+import { detectMaterialPairs } from './smart-class.js';
+import { inspectContext, contextToMarkdown } from './context-inspector.js';
 import { SOURCE_USE, sourceUseInfo } from './source-policy.js';
 import { KNOWLEDGE_DIMENSIONS, getKnowledgeState, setKnowledgeDimension, averageKnowledge } from './knowledge-state.js';
 import { BRAIN_VERSION, inferPresetForSubject } from './brain.js';
@@ -180,6 +182,44 @@ function knowledgeCard(sid, unitId, lessonId) {
             }, n === 0 ? '·' : String(n)))))));
 }
 
+function smartClassCard(sid, unitId, lessonId, lesson) {
+  const pairs = detectMaterialPairs(lesson.files || []);
+  const ready = (lesson.files || []).filter((f) => f.textStatus === 'ready' && f.sourceUse !== 'exclude');
+  const indexed = ready.filter((f) => f.indexStatus === 'ready');
+  const pairRows = pairs.map((p) =>
+    h('li', {}, `📊 ${p.slideName} ↔ 🎙️ ${p.transcriptName} · confianza ${p.confidence}`));
+
+  const prepareBtn = h('button', { class: 'btn ghost small', type: 'button' }, '🧩 Preparar clase');
+  prepareBtn.addEventListener('click', async () => {
+    if (!ready.length) return toast('Primero usa 🧠 Leer en al menos un documento');
+    prepareBtn.disabled = true;
+    prepareBtn.textContent = '🐾 Indexando…';
+    try {
+      const indexes = await ensureLessonIndexes(sid, unitId, lessonId, lesson.files || []);
+      toast(`Clase preparada: ${indexes.length} fuente(s) indexadas 🧩`);
+    } catch (e) {
+      toast(e.message || 'No se pudo preparar la clase');
+    } finally {
+      prepareBtn.disabled = false;
+      prepareBtn.textContent = '🧩 Preparar clase';
+    }
+  });
+
+  return h('div', { class: 'card form-grid smart-class-card' },
+    h('div', {},
+      h('h2', {}, '🧩 Smart Class'),
+      h('p', { class: 'muted' }, 'Study Paws relaciona materiales de la misma clase y crea un índice local para recuperar solo lo relevante. No usa IA.')),
+    h('div', { class: 'mini-stats' },
+      h('div', { class: 'mini-stat' }, h('b', {}, ready.length), h('small', { class: 'muted' }, 'fuentes leídas')),
+      h('div', { class: 'mini-stat' }, h('b', {}, indexed.length), h('small', { class: 'muted' }, 'indexadas')),
+      h('div', { class: 'mini-stat' }, h('b', {}, pairs.length), h('small', { class: 'muted' }, 'parejas detectadas')),
+      h('div', { class: 'mini-stat' }, h('b', {}, indexed.reduce((n,f)=>n+Number(f.chunkCount||0),0)), h('small', { class: 'muted' }, 'fragmentos'))),
+    pairRows.length
+      ? h('details', { open: true }, h('summary', {}, 'PPT/PDF + transcripción'), h('ul', { class: 'sources' }, pairRows))
+      : h('p', { class: 'muted' }, 'Si adjuntas una presentación y su transcripción, intentaré vincularlas automáticamente.'),
+    prepareBtn);
+}
+
 function lessonView(sid, unitId, lessonId) {
   const s = findSubject(sid);
   const u = findUnit(sid, unitId);
@@ -214,6 +254,7 @@ function lessonView(sid, unitId, lessonId) {
         h('input', { type: 'checkbox', checked: l.done, onChange: () => toggleLessonDone(sid, unitId, lessonId) }),
         'Clase estudiada')),
     knowledgeCard(sid, unitId, lessonId),
+    smartClassCard(sid, unitId, lessonId, l),
     h('h2', {}, 'Archivos de la clase'),
     h('div', { class: 'card form-grid' },
       h('label', { class: 'field' }, 'Clasificar como', typeSel),
@@ -229,7 +270,9 @@ function fileRow(sid, unitId, lessonId, f) {
   const t = typeInfo(f.type);
   return h('li', { class: 'file' },
     h('span', { class: 'dz-icon', 'aria-hidden': 'true' }, t.icon),
-    h('div', { class: 'fname' }, f.name, h('div', { class: 'muted', style: 'font-weight:400;font-size:.8rem' }, formatSize(f.size))),
+    h('div', { class: 'fname' }, f.name,
+      h('div', { class: 'muted', style: 'font-weight:400;font-size:.8rem' },
+        `${formatSize(f.size)}${f.indexStatus === 'ready' ? ` · 🧩 ${f.chunkCount || 0} fragmentos` : ''}`)),
     h('div', { class: 'fmeta' },
       h('select', { 'aria-label': 'Tipo de archivo', onChange: (e) => setFileType(sid, unitId, lessonId, f.id, e.target.value) },
         FILE_TYPES.map((x) => h('option', { value: x.id, selected: x.id === f.type }, `${x.icon} ${x.label}`))),
@@ -286,7 +329,7 @@ function createView(query = '') {
     unitId: q.get('u') || '', lessonId: q.get('l') || '',
     mode: GUIDE_MODES.some((m) => m.id === q.get('m')) ? q.get('m') : 'complete',
     preset: STUDY_PRESETS.some((p) => p.id === q.get('p')) ? q.get('p') : inferPresetForSubject(subs[0]?.name || ''),
-    depth: 'intermediate', mnemonics: true, summary: true
+    depth: 'intermediate', mnemonics: true, summary: true, focus: ''
   };
   if (!findUnit(form.sid, form.unitId)) { form.unitId = ''; form.lessonId = ''; }
   if (!findLesson(form.sid, form.unitId, form.lessonId)) form.lessonId = '';
@@ -376,9 +419,48 @@ function createView(query = '') {
     DEPTHS.map((d) => h('option', { value: d.id, selected: d.id === form.depth }, d.label)));
   const mnem = h('input', { type: 'checkbox', checked: true, onChange: (e) => { form.mnemonics = e.target.checked; } });
   const summ = h('input', { type: 'checkbox', checked: true, onChange: (e) => { form.summary = e.target.checked; } });
+  const focusInput = h('input', {
+    type: 'text',
+    placeholder: 'Opcional: ej. resistencia diurética, IECA, betabloqueadores…',
+    'aria-label': 'Enfoque o pregunta para recuperar contexto',
+    onInput: (e) => { form.focus = e.target.value; }
+  });
 
   const out = h('div', { class: 'view' });
   const btn = h('button', { class: 'btn', type: 'button' }, '✨ Generar guía (demo)');
+  const inspectBtn = h('button', { class: 'btn ghost', type: 'button' }, '👀 Ver contexto');
+
+  inspectBtn.addEventListener('click', async () => {
+    const subject = findSubject(form.sid);
+    const unit = findUnit(form.sid, form.unitId);
+    const lesson = findLesson(form.sid, form.unitId, form.lessonId);
+    if (!lesson) return toast('Elige una clase para inspeccionar su contexto');
+
+    inspectBtn.disabled = true;
+    inspectBtn.textContent = '🐾 Preparando contexto…';
+    try {
+      const indexes = await ensureLessonIndexes(form.sid, form.unitId, form.lessonId, lesson.files || []);
+      const ctx = inspectContext({
+        subject, unit, lesson,
+        preset: form.preset, mode: form.mode, focus: form.focus,
+        files: lesson.files || [], indexes
+      });
+      const markdown = contextToMarkdown(ctx, { brainLabel: presetInfo(form.preset).label });
+      out.replaceChildren(h('div', { class: 'card form-grid context-inspector-card' },
+        h('div', { class: 'row between wrap' },
+          h('div', {}, h('h2', {}, '👀 Context Inspector'),
+            h('p', { class: 'muted' }, 'Esto se calcula localmente. No usa API ni créditos.')),
+          h('span', { class: 'badge' }, `~${ctx.estimatedTokens.toLocaleString('es-CL')} tokens seleccionados`)),
+        h('article', { class: 'guide-paper inspector-paper', html: md(markdown) })));
+      out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      console.error(e);
+      toast(e.message || 'No se pudo inspeccionar el contexto');
+    } finally {
+      inspectBtn.disabled = false;
+      inspectBtn.textContent = '👀 Ver contexto';
+    }
+  });
 
   btn.addEventListener('click', async () => {
     btn.disabled = true;
@@ -445,9 +527,10 @@ function createView(query = '') {
     h('div', { class: 'card form-grid' },
       h('h2', {}, 'Opciones'),
       h('label', { class: 'field' }, 'Profundidad', depthSel),
+      h('label', { class: 'field' }, 'Enfoque o pregunta (opcional)', focusInput),
       h('label', { class: 'check' }, mnem, 'Incluir mnemotecnias'),
       h('label', { class: 'check' }, summ, 'Incluir resumen final')),
-    btn, out);
+    h('div', { class: 'row gap wrap' }, inspectBtn, btn), out);
 }
 
 /* ---------- Guías guardadas ---------- */
