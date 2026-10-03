@@ -125,3 +125,18 @@ Study Paws V0.4 separa la inteligencia que no necesita IA:
 - Constructor de paquete para la futura API.
 
 La futura IA no tendrá que decidir desde cero cómo enseñar ni qué documentos usar: recibirá una tarea ya estructurada.
+
+
+## Smart Class Engine V0.5
+
+La PWA prepara el contexto antes de usar IA:
+
+- indexa localmente PDFs, DOCX y texto;
+- conserva página/diapositiva y procedencia;
+- detecta parejas presentación ↔ transcripción dentro de una clase;
+- recupera solo fragmentos relevantes para una pregunta;
+- en modo diapositiva por diapositiva modela bloques reales de ~5 slides;
+- muestra un Context Inspector sin consumir API;
+- el futuro prompt builder recibe fragmentos seleccionados, no documentos completos por defecto.
+
+El índice y la recuperación funcionan localmente en el navegador.
