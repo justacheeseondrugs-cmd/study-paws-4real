@@ -426,3 +426,42 @@ body::before {
   cursor: pointer;
   font-weight: 700;
 }
+
+
+/* ===== Deep Alignment V0.5.1 ===== */
+.alignment-map-slot { display: grid; gap: 10px; }
+.alignment-details {
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+.alignment-pair { display: grid; gap: 10px; margin-top: 10px; }
+.alignment-list { display: grid; gap: 8px; }
+.alignment-row {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+.alignment-slide {
+  font-weight: 800;
+  font-size: .85rem;
+}
+.alignment-matches { display: grid; gap: 6px; }
+.alignment-match {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--paper-2);
+  border-left: 3px solid var(--line);
+}
+.alignment-match.alta { border-left-color: #4f9b63; }
+.alignment-match.media { border-left-color: #d29b3c; }
+.alignment-match.baja { opacity: .68; }
+.alignment-match b { font-size: .8rem; }
+.alignment-match span { font-size: .85rem; line-height: 1.35; }
+@media (max-width: 620px) {
+  .alignment-row { grid-template-columns: 1fr; }
+}
