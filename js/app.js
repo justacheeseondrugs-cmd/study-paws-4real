@@ -225,7 +225,7 @@ function createView(query = '') {
     sid: findSubject(q.get('s')) ? q.get('s') : subs[0].id,
     unitId: q.get('u') || '', lessonId: q.get('l') || '',
     mode: GUIDE_MODES.some((m) => m.id === q.get('m')) ? q.get('m') : 'complete',
-    preset: STUDY_PRESETS.some((p) => p.id === q.get('p')) ? q.get('p') : 'general',
+    preset: STUDY_PRESETS.some((p) => p.id === q.get('p')) ? q.get('p') : 'interna_materia',
     depth: 'intermediate', mnemonics: true, summary: true
   };
   if (!findUnit(form.sid, form.unitId)) { form.unitId = ''; form.lessonId = ''; }
