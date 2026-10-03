@@ -110,3 +110,18 @@ Recomendaciones:
 ---
 
 🚀 Study Paws V0 publicada desde el repositorio oficial.
+
+
+## Study Paws Brain V1
+
+Study Paws V0.4 separa la inteligencia que no necesita IA:
+
+- Brain global de aprendizaje.
+- Perfiles para Medicina Interna (materia), Medicina Interna (práctica) y Farmacología.
+- Política de fuentes: automático / núcleo / apoyo / no usar.
+- Estado de dominio separado: comprender / recordar / aplicar / defender.
+- Estimación previa de contexto y tokens.
+- División automática en bloques para PDFs largos.
+- Constructor de paquete para la futura API.
+
+La futura IA no tendrá que decidir desde cero cómo enseñar ni qué documentos usar: recibirá una tarea ya estructurada.
