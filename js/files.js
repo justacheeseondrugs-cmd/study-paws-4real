@@ -2,7 +2,7 @@
 import { update, newId, putBlob, getBlob, deleteBlob } from './storage.js';
 import { findLesson } from './subjects.js';
 import { extractTextFromFile, canExtractText } from './extract.js';
-import { buildDocumentIndex } from './study-retrieval.js';
+import { buildDocumentIndex, INDEX_VERSION } from './study-retrieval.js';
 import { alignSlidesWithTranscript } from './smart-class.js';
 
 export const FILE_TYPES = [
@@ -174,7 +174,7 @@ export async function ensureDocumentIndex(sid, unitId, lessonId, fileId) {
   if (meta.textStatus !== 'ready') throw new Error('Primero lee el documento');
 
   const existing = await getDocumentIndex(fileId);
-  if (existing?.version === 1 && existing?.chunkCount >= 0) {
+  if (existing?.version === INDEX_VERSION && existing?.chunkCount >= 0) {
     if (meta.indexStatus !== 'ready' || meta.chunkCount !== existing.chunkCount) {
       update(() => {
         const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
@@ -235,7 +235,7 @@ export async function buildPairAlignment(sid, unitId, lessonId, pair) {
   const transcriptIndex = await ensureDocumentIndex(sid, unitId, lessonId, pair.transcriptId);
   const items = alignSlidesWithTranscript(slideIndex, transcriptIndex, { maxTranscriptChunks: 2 });
   const alignment = {
-    version: 1,
+    version: 2,
     slideId: pair.slideId,
     transcriptId: pair.transcriptId,
     slideName: pair.slideName,
@@ -267,7 +267,7 @@ export async function getLessonAlignments(pairs = []) {
   const out = [];
   for (const pair of pairs) {
     const saved = await getPairAlignment(pair.slideId, pair.transcriptId);
-    if (saved) out.push(saved);
+    if (saved?.version === 2) out.push(saved);
   }
   return out;
 }
