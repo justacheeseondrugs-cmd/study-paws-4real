@@ -112,15 +112,39 @@ const builders = {
 
   slides: ({ topic, files }) => {
     const ppts = files.filter((f) => f.type === 'ppt');
+    const textSources = files.filter((f) => f.text?.trim());
+
+    if (!ppts.length && textSources.length) {
+      const source = textSources[0];
+      const paras = source.text.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+      const blockSize = Math.max(1, Math.ceil(paras.length / 6));
+      const blocks = [];
+      for (let i = 0; i < paras.length; i += blockSize) {
+        blocks.push(paras.slice(i, i + blockSize).join('\n\n'));
+      }
+      return [
+        `# Guía por bloques: ${topic}`,
+        '> 🧠 Study Paws ya está usando el texto REAL extraído de tu documento. Todavía falta conectar la IA para convertirlo en explicación médica completa.',
+        `**Fuente leída:** ${source.name} · ${source.text.length.toLocaleString('es-CL')} caracteres`,
+        ...blocks.slice(0, 6).flatMap((block, i) => [
+          `## Bloque ${i + 1}`,
+          block.slice(0, 1800),
+          '### Lo que hará la IA aquí',
+          '- Explicar el contenido con nivel de Medicina.',
+          '- Conectarlo con fisiopatología y clínica.',
+          '- Marcar puntos clave y trampas.',
+          '- Crear una pregunta posible y un mini-caso cuando corresponda.'
+        ])
+      ];
+    }
+
     const titles = ['Introducción y objetivos', 'Definiciones clave', 'Mecanismo / fisiopatología', 'Manifestaciones clínicas', 'Diagnóstico y tratamiento', 'Resumen y preguntas'];
     return [
       `# Diapositiva por diapositiva: ${topic}`, NOTE,
-      ppts.length ? `Basado en: ${ppts.map((f) => f.name).join(', ')}` : 'No hay PPT adjunto: se usan diapositivas de ejemplo.',
+      ppts.length ? `PPT detectado: ${ppts.map((f) => f.name).join(', ')}. El lector de PowerPoint se añadirá después.` : 'No hay una fuente legible todavía. Usa 🧠 Leer documento en tu DOCX.',
       ...titles.flatMap((t, i) => [
         `## Diapositiva ${i + 1}: ${t}`,
-        '- Qué dice la diapositiva (resumen).',
-        '- Cómo explicarlo con tus palabras.',
-        '- Ojo: detalle que suele preguntarse.'
+        '- Pendiente de lectura real de la fuente.'
       ])
     ];
   },

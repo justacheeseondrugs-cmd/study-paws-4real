@@ -5,7 +5,7 @@ import {
   addSubject, renameSubject, deleteSubject, addUnit, renameUnit, deleteUnit,
   addLesson, renameLesson, deleteLesson, toggleLessonDone
 } from './subjects.js';
-import { FILE_TYPES, typeInfo, attachFiles, setFileType, removeFile, openFile, formatSize } from './files.js';
+import { FILE_TYPES, typeInfo, attachFiles, setFileType, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload } from './files.js';
 import {
   GUIDE_MODES, DEPTHS, STUDY_PRESETS, presetInfo, modeInfo, generateGuide, saveGuide, updateGuide, deleteGuide, findGuide, listGuides
 } from './guides.js';
@@ -209,6 +209,16 @@ function fileRow(sid, unitId, lessonId, f) {
       h('select', { 'aria-label': 'Tipo de archivo', onChange: (e) => setFileType(sid, unitId, lessonId, f.id, e.target.value) },
         FILE_TYPES.map((x) => h('option', { value: x.id, selected: x.id === f.type }, `${x.icon} ${x.label}`))),
       iconBtn('👁️', 'Abrir', () => openFile(f).catch(() => toast('No se pudo abrir el archivo'))),
+      f.textStatus === 'ready'
+        ? iconBtn('🔎', `Ver texto leído (${f.textChars || 0} caracteres)`, () => openExtractedText(f).catch((e) => toast(e.message)))
+        : iconBtn('🧠', f.textStatus === 'reading' ? 'Leyendo…' : 'Leer documento', async () => {
+            try {
+              const r = await extractAndStoreText(sid, unitId, lessonId, f.id);
+              toast(`Documento leído: ${r.chars.toLocaleString('es-CL')} caracteres 🐾`);
+            } catch (e) {
+              toast(e.message || 'No se pudo leer el documento');
+            }
+          }),
       iconBtn('🗑️', 'Quitar', async () => {
         if (await confirmDialog({ title: `¿Quitar "${f.name}"?`, confirm: 'Quitar', danger: true })) removeFile(sid, unitId, lessonId, f.id);
       })));
@@ -251,7 +261,8 @@ function createView(query = '') {
     const l = findLesson(form.sid, form.unitId, form.lessonId);
     if (!l) { sourcesBox.replaceChildren('Elige una clase para usar sus archivos como fuentes.'); return; }
     sourcesBox.replaceChildren(l.files.length
-      ? h('div', {}, h('strong', {}, 'Fuentes de la clase:'), h('ul', { class: 'sources' }, l.files.map((f) => h('li', {}, `${typeInfo(f.type).icon} ${f.name}`))))
+      ? h('div', {}, h('strong', {}, 'Fuentes de la clase:'), h('ul', { class: 'sources' }, l.files.map((f) =>
+          h('li', {}, `${typeInfo(f.type).icon} ${f.name} ${f.textStatus === 'ready' ? `· 🧠 leído (${(f.textChars || 0).toLocaleString('es-CL')} caracteres)` : '· pendiente de lectura'}`))))
       : 'Esta clase no tiene archivos todavía; se usará contenido de ejemplo.');
   }
   subjectSel.addEventListener('change', () => { form.sid = subjectSel.value; form.unitId = ''; form.lessonId = ''; fill(); });
@@ -290,7 +301,7 @@ function createView(query = '') {
         subject: { id: subject.id, name: subject.name },
         unit: unit ? { id: unit.id, name: unit.name } : null,
         lesson: lesson ? { id: lesson.id, name: lesson.name } : null,
-        files: (lesson?.files ?? []).map((f) => ({ name: f.name, type: f.type }))
+        files: await buildSourcePayload(lesson?.files ?? [])
       });
       showPreview(result);
     } catch (err) {

@@ -1,6 +1,7 @@
 // Archivos adjuntos por clase. Metadatos en el estado, contenido en IndexedDB.
 import { update, newId, putBlob, getBlob, deleteBlob } from './storage.js';
 import { findLesson } from './subjects.js';
+import { extractTextFromFile, canExtractText } from './extract.js';
 
 export const FILE_TYPES = [
   { id: 'ppt', label: 'PPT', icon: '📊' },
@@ -55,12 +56,82 @@ export function setFileType(sid, unitId, lessonId, fileId, type) {
   });
 }
 
+const textKey = (id) => `text:${id}`;
+
+export async function extractAndStoreText(sid, unitId, lessonId, fileId) {
+  const meta = findLesson(sid, unitId, lessonId)?.files.find((f) => f.id === fileId);
+  if (!meta) throw new Error('Archivo no encontrado');
+  const blob = await getBlob(fileId);
+  if (!blob) throw new Error('Archivo no encontrado');
+
+  update(() => {
+    const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+    if (f) { f.textStatus = 'reading'; f.textError = ''; }
+  });
+
+  try {
+    const result = await extractTextFromFile(blob, meta.name);
+    await putBlob(textKey(fileId), new Blob([result.text], { type: 'text/plain;charset=utf-8' }));
+    update(() => {
+      const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+      if (f) {
+        f.textStatus = 'ready';
+        f.textChars = result.text.length;
+        f.textEngine = result.engine;
+        f.textError = '';
+      }
+    });
+    return { chars: result.text.length, engine: result.engine };
+  } catch (err) {
+    update(() => {
+      const f = findLesson(sid, unitId, lessonId)?.files.find((x) => x.id === fileId);
+      if (f) {
+        f.textStatus = 'error';
+        f.textError = err?.message || 'No se pudo leer el archivo';
+      }
+    });
+    throw err;
+  }
+}
+
+export async function getExtractedText(fileId) {
+  const blob = await getBlob(textKey(fileId));
+  if (!blob) return '';
+  if (typeof blob === 'string') return blob;
+  return typeof blob.text === 'function' ? blob.text() : String(blob);
+}
+
+export async function openExtractedText(meta) {
+  const text = await getExtractedText(meta.id);
+  if (!text) throw new Error('Primero lee el documento');
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const w = window.open(url, '_blank', 'noopener');
+  if (!w) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${meta.name.replace(/\.[^.]+$/, '')}-texto.txt`;
+    a.click();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function buildSourcePayload(metas = []) {
+  return Promise.all(metas.map(async (f) => ({
+    name: f.name,
+    type: f.type,
+    textStatus: f.textStatus || '',
+    textChars: f.textChars || 0,
+    canExtract: canExtractText({ type: f.mime }, f.name),
+    text: f.textStatus === 'ready' ? await getExtractedText(f.id) : ''
+  })));
+}
+
 export async function removeFile(sid, unitId, lessonId, fileId) {
   update(() => {
     const l = findLesson(sid, unitId, lessonId);
     if (l) l.files = l.files.filter((f) => f.id !== fileId);
   });
-  await deleteBlob(fileId).catch(() => {});
+  await Promise.allSettled([deleteBlob(fileId), deleteBlob(textKey(fileId))]);
 }
 
 export async function openFile(meta) {

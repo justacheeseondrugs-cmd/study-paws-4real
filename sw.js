@@ -1,6 +1,6 @@
 // Service worker: precache del "app shell" + stale-while-revalidate.
 // Sube VERSION cada vez que despliegues cambios.
-const VERSION = 'v0.2.1';
+const VERSION = 'v0.3.0';
 const CACHE = `study-paws-${VERSION}`;
 
 const ASSETS = [
@@ -13,6 +13,7 @@ const ASSETS = [
   './js/storage.js',
   './js/subjects.js',
   './js/files.js',
+  './js/extract.js',
   './js/guides.js',
   './assets/icons/icon.svg',
   './assets/icons/icon-maskable.svg'
