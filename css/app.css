@@ -251,3 +251,70 @@ dialog::backdrop { background: rgba(40,25,35,.45); backdrop-filter: blur(2px); }
   .guide-paper { border: 0; box-shadow: none; padding-left: 0; }
   .guide-paper::before { display: none; }
 }
+
+
+/* ===== Study Paws V0.2 ===== */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--pink) 24%, transparent), transparent 28%),
+    radial-gradient(circle at 88% 22%, color-mix(in srgb, var(--c4) 34%, transparent), transparent 26%),
+    radial-gradient(circle at 50% 95%, color-mix(in srgb, var(--c2) 34%, transparent), transparent 30%);
+}
+
+.card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+@media (hover:hover) {
+  .card:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(170,110,100,.18); }
+}
+.hero {
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--pink-soft) 86%, var(--paper)), color-mix(in srgb, var(--c4) 58%, var(--paper)));
+}
+.hero::after {
+  content: "✦";
+  position: absolute;
+  right: 18px;
+  top: 12px;
+  font-size: 2rem;
+  color: var(--pink-strong);
+  opacity: .22;
+}
+
+.preset-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.preset-chip { position: relative; }
+.preset-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.preset-body {
+  min-height: 92px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  cursor: pointer;
+  border: 2px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper-2);
+}
+.preset-body > span:last-child { display: grid; gap: 3px; }
+.preset-body small { color: var(--muted); line-height: 1.3; }
+.preset-icon { font-size: 1.7rem; line-height: 1; }
+.preset-chip input:checked + .preset-body {
+  border-color: var(--pink-strong);
+  background: var(--pink-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pink-strong) 28%, transparent);
+}
+.preset-chip input:focus-visible + .preset-body { outline: 3px solid var(--pink-strong); outline-offset: 2px; }
+
+@media (max-width: 520px) {
+  .preset-grid { grid-template-columns: 1fr; }
+  .hero { align-items: flex-start; }
+  .hero-cat { width: 64px; }
+}
