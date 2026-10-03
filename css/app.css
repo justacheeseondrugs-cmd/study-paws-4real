@@ -392,3 +392,37 @@ body::before {
   .knowledge-dot { flex: 1; border-radius: 12px; }
   .file .fmeta .source-use { flex-basis: 100%; }
 }
+
+
+/* ===== Study Paws V0.5 · Smart Class Engine ===== */
+.smart-class-card {
+  position: relative;
+  overflow: hidden;
+}
+.smart-class-card::after {
+  content: "🐾";
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  opacity: .08;
+  font-size: 3.4rem;
+  pointer-events: none;
+}
+.context-inspector-card {
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0,0,0,.05);
+}
+.inspector-paper {
+  max-height: 65vh;
+  overflow: auto;
+}
+.smart-class-card details,
+.context-inspector-card details {
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+.smart-class-card summary,
+.context-inspector-card summary {
+  cursor: pointer;
+  font-weight: 700;
+}
