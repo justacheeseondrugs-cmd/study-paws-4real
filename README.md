@@ -1,1 +1,104 @@
-# study-paws-4real
+# 🐾 Study Paws (V0)
+
+PWA mobile-first para estudiar (pensada para Medicina): materias, unidades, clases,
+archivos adjuntos y guías de estudio. Esta versión **no usa IA ni backend**:
+todo se guarda en tu dispositivo y funciona offline tras la primera carga.
+
+## Funciones V0
+- Dashboard de materias (crear, renombrar, eliminar)
+- Unidades y clases dentro de cada materia, con check de "estudiada"
+- Archivos por clase, clasificados como PPT / transcripción / guía / libro / otro
+- "Crear guía" con 7 modos (completa, diapositiva por diapositiva, repaso rápido,
+  puntos clave, trampas, preguntas, casos clínicos) usando **contenido demo**
+- Guías y borradores guardados localmente, editables, copiables e imprimibles
+- Progreso (porcentaje, racha, actividad semanal, avance por materia)
+- Modo claro / oscuro / automático
+- Instalable y offline
+
+## Probar en local
+Los service workers y módulos ES requieren servidor (no abras el HTML con doble clic):
+
+```bash
+cd study-paws
+python3 -m http.server 8080
+# abre http://localhost:8080
+```
+
+## Publicar en GitHub Pages
+1. Sube la carpeta a un repositorio (los archivos deben quedar en la raíz del repo o en `/docs`).
+2. En GitHub: **Settings → Pages → Deploy from a branch**, elige la rama y `/ (root)` (o `/docs`).
+3. Abre `https://TU-USUARIO.github.io/NOMBRE-REPO/`.
+
+Todas las rutas son relativas y el router usa `#/`, así que funciona en subcarpetas sin configuración extra.
+
+## Instalar como app
+- **Android (Chrome):** menú ⋮ → *Instalar app* (o el botón en Ajustes).
+- **Escritorio (Chrome/Edge):** icono de instalar en la barra de direcciones.
+- **iOS (Safari):** Compartir → *Añadir a pantalla de inicio*.
+
+## Estructura
+| Archivo | Responsabilidad |
+|---|---|
+| `index.html` | Esqueleto, nav, diálogo y toast |
+| `css/app.css` | Tema cuaderno, claro/oscuro, responsive |
+| `js/app.js` | Router por hash + todas las vistas |
+| `js/ui.js` | Helper `h()`, markdown mínimo, diálogos, toast, gatito |
+| `js/storage.js` | Estado en localStorage + blobs en IndexedDB |
+| `js/subjects.js` | Materias / unidades / clases |
+| `js/files.js` | Adjuntos y tipos de archivo |
+| `js/guides.js` | Modos, proveedores de contenido, guardado |
+| `sw.js` | Caché offline |
+
+## Modelo de datos (localStorage `studypaws:v1`)
+```
+subjects[]: { id, name, emoji, color, units[]: { id, name, lessons[]:
+              { id, name, done, files[]: { id, name, size, mime, type } } } }
+guides[]:   { id, title, content(markdown), mode, status: 'draft'|'saved',
+              subjectId, unitId, lessonId, createdAt, updatedAt }
+settings:   { theme: 'auto'|'light'|'dark' }
+progress:   { log: { 'YYYY-MM-DD': n } }
+```
+El contenido de los archivos vive en IndexedDB (`studypaws-files`), indexado por `file.id`.
+
+## Cómo añadir IA y backend más adelante
+La generación pasa por un **contrato de proveedor** en `js/guides.js`:
+
+```js
+registerProvider({
+  id: 'mi-backend',
+  label: 'Mi backend',
+  async generate(request) {
+    // request: { mode, depth, options, subject, unit, lesson, files:[{name,type}] }
+    const res = await fetch('https://TU-BACKEND/api/guides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+    if (!res.ok) throw new Error('Error del backend');
+    return res.json(); // { title, content } con content en Markdown
+  }
+});
+setActiveProvider('mi-backend');
+```
+Recomendaciones:
+- **Nunca** pongas API keys en el frontend: llama a tu propio backend y guarda las claves allí.
+- Para enviar el contenido de los archivos, súbelos al backend (multipart) o extrae texto en el cliente antes.
+- Para sincronizar datos, reimplementa las funciones de `storage.js` (`update`, `getState`, `putBlob`…) contra tu API.
+- Un selector de proveedor puede añadirse en `settingsView()` de `app.js`.
+
+## Notas y límites conocidos
+- **Iconos:** se incluyen SVG (válidos en Chrome/Edge/Android). Para máxima compatibilidad
+  (sobre todo iOS) genera `icon-192.png`, `icon-512.png` y `apple-touch-icon.png` (180×180)
+  a partir de `assets/icons/icon.svg`, añádelos al `manifest.webmanifest` **y** a `ASSETS` en `sw.js`
+  (si un archivo listado no existe, el service worker no se instala).
+- **Actualizaciones:** al desplegar cambios, sube `VERSION` en `sw.js`. Los usuarios verán la versión nueva en la siguiente carga.
+- **Datos locales:** si el usuario borra los datos del navegador, se pierden. Por eso existe Exportar/Importar
+  (la copia no incluye los archivos adjuntos).
+- Los archivos grandes ocupan el espacio del navegador; el panel de Ajustes muestra el uso.
+
+## Roadmap sugerido
+1. Probar V0 y pulir la UI.
+2. Extraer texto de PDF/PPT en el cliente.
+3. Backend + proveedor de IA real.
+4. Repetición espaciada con las preguntas generadas.
+5. Cuentas y sincronización.

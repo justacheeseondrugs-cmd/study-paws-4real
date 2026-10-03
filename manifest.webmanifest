@@ -1,0 +1,17 @@
+{
+  "name": "Study Paws",
+  "short_name": "Study Paws",
+  "description": "Tu cuaderno de estudio con un gatito: materias, clases, archivos y guías.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "lang": "es",
+  "background_color": "#fbf4e6",
+  "theme_color": "#f7bfcd",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

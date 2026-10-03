@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Study Paws</title>
+  <meta name="description" content="Tu cuaderno de estudio con un gatito. Materias, clases, archivos y guías.">
+  <meta name="theme-color" content="#fbf4e6">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icons/icon.svg">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // Aplica el tema antes de pintar para evitar parpadeos
+    try {
+      var s = (JSON.parse(localStorage.getItem('studypaws:v1') || '{}').settings) || {};
+      var t = s.theme || 'auto';
+      var d = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = d ? 'dark' : 'light';
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">
+      <img src="assets/icons/icon.svg" alt="" width="34" height="34">
+      <span>Study Paws</span>
+    </a>
+    <button id="theme-toggle" class="icon-btn" type="button" aria-label="Cambiar tema">🌙</button>
+  </header>
+
+  <main id="app" tabindex="-1">
+    <noscript>Study Paws necesita JavaScript para funcionar.</noscript>
+  </main>
+
+  <nav class="nav" aria-label="Principal">
+    <a href="#/" data-nav="home"><span class="ni">🏠</span>Inicio</a>
+    <a href="#/create" data-nav="create"><span class="ni">✨</span>Crear</a>
+    <a href="#/guides" data-nav="guides"><span class="ni">📚</span>Guías</a>
+    <a href="#/progress" data-nav="progress"><span class="ni">🌱</span>Progreso</a>
+    <a href="#/settings" data-nav="settings"><span class="ni">⚙️</span>Ajustes</a>
+  </nav>
+
+  <dialog id="dlg"></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
