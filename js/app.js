@@ -177,7 +177,7 @@ function knowledgeCard(sid, unitId, lessonId) {
               title: n === 0 ? 'Sin evaluar' : `${n}/4`,
               'aria-label': `${d.label}: ${n} de 4`,
               onClick: () => setKnowledgeDimension(sid, unitId, lessonId, d.id, n)
-            }, n === 0 ? '·' : String(n))))));
+            }, n === 0 ? '·' : String(n)))))));
 }
 
 function lessonView(sid, unitId, lessonId) {
