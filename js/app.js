@@ -190,6 +190,32 @@ function smartClassCard(sid, unitId, lessonId, lesson) {
     h('li', {}, `📊 ${p.slideName} ↔ 🎙️ ${p.transcriptName} · confianza ${p.confidence}`));
 
   const alignmentStatus = h('div', { class: 'muted' }, pairs.length ? 'Alineaciones todavía no preparadas.' : '');
+  const alignmentMap = h('div', { class: 'alignment-map-slot' });
+
+  function renderAlignmentMap(saved) {
+    if (!saved.length) {
+      alignmentMap.replaceChildren();
+      return;
+    }
+    alignmentMap.replaceChildren(
+      h('details', { class: 'alignment-details' },
+        h('summary', {}, '👁️ Ver mapa diapositiva ↔ transcripción'),
+        saved.map((a) =>
+          h('div', { class: 'alignment-pair' },
+            h('strong', {}, `${a.slideName} ↔ ${a.transcriptName}`),
+            h('div', { class: 'alignment-list' },
+              (a.items || []).map((item) =>
+                h('div', { class: 'alignment-row' },
+                  h('span', { class: 'alignment-slide' }, `Diapo ${item.page}`),
+                  h('div', { class: 'alignment-matches' },
+                    (item.transcriptMatches || []).length
+                      ? (item.transcriptMatches || []).map((m) =>
+                          h('div', { class: `alignment-match ${m.confidence || 'baja'}` },
+                            h('b', {}, `🎙️ Fragmento ${m.chunk} · ${m.confidence || 'baja'}`),
+                            h('span', {}, String(m.text || '').slice(0, 180) + (String(m.text || '').length > 180 ? '…' : ''))))
+                      : h('span', { class: 'muted' }, 'Sin coincidencia útil')))))))));
+  }
+
   getLessonAlignments(pairs).then((saved) => {
     if (!pairs.length) return;
     const pages = saved.reduce((n,a)=>n+(a.items?.length||0),0);
@@ -197,6 +223,7 @@ function smartClassCard(sid, unitId, lessonId, lesson) {
     alignmentStatus.textContent = saved.length
       ? `🔗 ${saved.length}/${pairs.length} pareja(s) alineadas · ${pages} diapositivas mapeadas · ${strong} vínculos útiles`
       : '🔗 Alineación profunda pendiente.';
+    renderAlignmentMap(saved);
   }).catch(()=>{});
 
   const prepareBtn = h('button', { class: 'btn ghost small', type: 'button' }, '🧩 Preparar clase');
@@ -234,6 +261,7 @@ function smartClassCard(sid, unitId, lessonId, lesson) {
       const pages = aligned.reduce((n,a)=>n+(a.items?.length||0),0);
       const useful = aligned.reduce((n,a)=>n+(a.items||[]).reduce((m,item)=>m+(item.transcriptMatches||[]).filter(x=>x.confidence==='alta'||x.confidence==='media').length,0),0);
       alignmentStatus.textContent = `🔗 ${aligned.length}/${pairs.length} pareja(s) alineadas · ${pages} diapositivas mapeadas · ${useful} vínculos útiles`;
+      renderAlignmentMap(aligned);
       toast(`Alineación lista: ${pages} diapositivas vinculadas con la transcripción 🔗`);
     } catch (e) {
       console.error(e);
@@ -257,6 +285,7 @@ function smartClassCard(sid, unitId, lessonId, lesson) {
       ? h('details', { open: true }, h('summary', {}, 'PPT/PDF + transcripción'), h('ul', { class: 'sources' }, pairRows))
       : h('p', { class: 'muted' }, 'Si adjuntas una presentación y su transcripción, intentaré vincularlas automáticamente.'),
     alignmentStatus,
+    alignmentMap,
     h('div', { class: 'row gap wrap' }, prepareBtn, alignBtn));
 }
 
