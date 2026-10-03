@@ -5,7 +5,11 @@ import {
   addSubject, renameSubject, deleteSubject, addUnit, renameUnit, deleteUnit,
   addLesson, renameLesson, deleteLesson, toggleLessonDone
 } from './subjects.js';
-import { FILE_TYPES, typeInfo, attachFiles, setFileType, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload } from './files.js';
+import { FILE_TYPES, typeInfo, attachFiles, setFileType, setSourceUse, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload } from './files.js';
+import { SOURCE_USE, sourceUseInfo } from './source-policy.js';
+import { KNOWLEDGE_DIMENSIONS, getKnowledgeState, setKnowledgeDimension, averageKnowledge } from './knowledge-state.js';
+import { BRAIN_VERSION, inferPresetForSubject } from './brain.js';
+import { buildContextPlan } from './context-planner.js';
 import {
   GUIDE_MODES, DEPTHS, STUDY_PRESETS, presetInfo, modeInfo, generateGuide, saveGuide, updateGuide, deleteGuide, findGuide, listGuides
 } from './guides.js';
@@ -156,6 +160,26 @@ function unitCard(s, u) {
     h('button', { class: 'btn ghost small', onClick: () => onAddLesson(s, u) }, '+ Clase'));
 }
 
+function knowledgeCard(sid, unitId, lessonId) {
+  const state = getKnowledgeState(sid, unitId, lessonId);
+  return h('div', { class: 'card form-grid knowledge-card' },
+    h('div', {},
+      h('h2', {}, '🧠 Estado de aprendizaje'),
+      h('p', { class: 'muted' }, 'Comprender no es lo mismo que recordar, aplicar o defender. Más adelante Study Paws actualizará esto con tus resultados.')),
+    KNOWLEDGE_DIMENSIONS.map((d) =>
+      h('div', { class: 'knowledge-row' },
+        h('span', { class: 'knowledge-label' }, `${d.icon} ${d.label}`),
+        h('div', { class: 'knowledge-dots', role: 'group', 'aria-label': d.label },
+          [0,1,2,3,4].map((n) =>
+            h('button', {
+              type: 'button',
+              class: `knowledge-dot${state[d.id] === n ? ' on' : ''}`,
+              title: n === 0 ? 'Sin evaluar' : `${n}/4`,
+              'aria-label': `${d.label}: ${n} de 4`,
+              onClick: () => setKnowledgeDimension(sid, unitId, lessonId, d.id, n)
+            }, n === 0 ? '·' : String(n))))));
+}
+
 function lessonView(sid, unitId, lessonId) {
   const s = findSubject(sid);
   const u = findUnit(sid, unitId);
@@ -189,6 +213,7 @@ function lessonView(sid, unitId, lessonId) {
       h('label', { class: 'check' },
         h('input', { type: 'checkbox', checked: l.done, onChange: () => toggleLessonDone(sid, unitId, lessonId) }),
         'Clase estudiada')),
+    knowledgeCard(sid, unitId, lessonId),
     h('h2', {}, 'Archivos de la clase'),
     h('div', { class: 'card form-grid' },
       h('label', { class: 'field' }, 'Clasificar como', typeSel),
@@ -196,7 +221,7 @@ function lessonView(sid, unitId, lessonId) {
       l.files.length
         ? h('ul', { class: 'files' }, l.files.map((f) => fileRow(sid, unitId, lessonId, f)))
         : h('p', { class: 'muted' }, 'Aún no hay archivos: PPT, transcripciones, guías, libros…')),
-    h('a', { class: 'btn', href: `#/create?s=${sid}&u=${unitId}&l=${lessonId}` }, '✨ Crear guía con esta clase'),
+    h('a', { class: 'btn', href: `#/create?s=${sid}&u=${unitId}&l=${lessonId}&p=${inferPresetForSubject(s.name)}` }, '✨ Crear guía con esta clase'),
     guides.length ? h('div', { class: 'view' }, h('h2', {}, 'Guías de esta clase'), guides.map(guideItem)) : null);
 }
 
@@ -208,6 +233,24 @@ function fileRow(sid, unitId, lessonId, f) {
     h('div', { class: 'fmeta' },
       h('select', { 'aria-label': 'Tipo de archivo', onChange: (e) => setFileType(sid, unitId, lessonId, f.id, e.target.value) },
         FILE_TYPES.map((x) => h('option', { value: x.id, selected: x.id === f.type }, `${x.icon} ${x.label}`))),
+      h('select', {
+        class: 'source-use',
+        'aria-label': 'Uso de esta fuente',
+        title: f.sourceNote || 'Cómo debe usar Study Paws este documento',
+        onChange: async (e) => {
+          const value = e.target.value;
+          let note = f.sourceNote || '';
+          if (value === 'exclude') {
+            note = await promptDialog({
+              title: '¿Por qué no usar este documento?',
+              label: 'Ej: está repetido / no entra / está desactualizado',
+              value: note,
+              confirm: 'Guardar decisión'
+            }) || note;
+          }
+          setSourceUse(sid, unitId, lessonId, f.id, value, note);
+        }
+      }, SOURCE_USE.map((x) => h('option', { value: x.id, selected: x.id === (f.sourceUse || 'auto') }, x.label))),
       iconBtn('👁️', 'Abrir', () => openFile(f).catch(() => toast('No se pudo abrir el archivo'))),
       f.textStatus === 'ready'
         ? h('button', { class: 'btn ghost small file-read-btn', type: 'button',
@@ -242,7 +285,7 @@ function createView(query = '') {
     sid: findSubject(q.get('s')) ? q.get('s') : subs[0].id,
     unitId: q.get('u') || '', lessonId: q.get('l') || '',
     mode: GUIDE_MODES.some((m) => m.id === q.get('m')) ? q.get('m') : 'complete',
-    preset: STUDY_PRESETS.some((p) => p.id === q.get('p')) ? q.get('p') : 'interna_materia',
+    preset: STUDY_PRESETS.some((p) => p.id === q.get('p')) ? q.get('p') : inferPresetForSubject(subs[0]?.name || ''),
     depth: 'intermediate', mnemonics: true, summary: true
   };
   if (!findUnit(form.sid, form.unitId)) { form.unitId = ''; form.lessonId = ''; }
@@ -252,6 +295,7 @@ function createView(query = '') {
   const unitSel = h('select', { 'aria-label': 'Unidad' });
   const lessonSel = h('select', { 'aria-label': 'Clase' });
   const sourcesBox = h('div', { class: 'muted' });
+  const planBox = h('div', { class: 'brain-plan-body' });
 
   function fill() {
     const sub = findSubject(form.sid);
@@ -263,7 +307,47 @@ function createView(query = '') {
       ...(unit ? unit.lessons : []).map((l) => h('option', { value: l.id, selected: l.id === form.lessonId }, l.name)));
     lessonSel.disabled = !unit;
     renderSources();
+    renderPlan();
   }
+
+  function renderPlan() {
+    const subject = findSubject(form.sid);
+    const unit = findUnit(form.sid, form.unitId);
+    const lesson = findLesson(form.sid, form.unitId, form.lessonId);
+    const plan = buildContextPlan({
+      preset: form.preset,
+      mode: form.mode,
+      depth: form.depth,
+      subject,
+      unit,
+      lesson,
+      files: lesson?.files || []
+    });
+
+    const stat = (value, label) =>
+      h('div', { class: 'mini-stat' }, h('b', {}, value), h('small', { class: 'muted' }, label));
+
+    const sourceRows = plan.sources.map((src) =>
+      h('li', {}, `${typeInfo(src.type).icon} ${src.name} · ${sourceUseInfo(src.sourceUse).label} · ${src.readable ? `~${Math.ceil((src.textChars || 0) / 4).toLocaleString('es-CL')} tok` : 'sin texto leído'}`));
+
+    planBox.replaceChildren(
+      h('div', { class: 'brain-plan-head' },
+        h('strong', {}, `🐾 Brain ${plan.brainVersion} · ${plan.brainLabel}`),
+        h('p', { class: 'muted' }, plan.chunkLabel)),
+      h('div', { class: 'mini-stats' },
+        stat(plan.readableSources, 'fuentes listas'),
+        stat(plan.pages || '—', 'páginas'),
+        stat(plan.estimatedInputTokens ? `~${plan.estimatedInputTokens.toLocaleString('es-CL')}` : '—', 'tokens entrada'),
+        stat(plan.calls || '—', 'bloques IA')),
+      sourceRows.length
+        ? h('details', {}, h('summary', {}, 'Fuentes que priorizaría'), h('ul', { class: 'sources' }, sourceRows))
+        : null,
+      plan.warnings.length
+        ? h('div', { class: 'plan-warnings' }, plan.warnings.map((w) => h('p', {}, `⚠️ ${w}`)))
+        : null
+    );
+  }
+
   function renderSources() {
     const l = findLesson(form.sid, form.unitId, form.lessonId);
     if (!l) { sourcesBox.replaceChildren('Elige una clase para usar sus archivos como fuentes.'); return; }
@@ -274,21 +358,21 @@ function createView(query = '') {
   }
   subjectSel.addEventListener('change', () => { form.sid = subjectSel.value; form.unitId = ''; form.lessonId = ''; fill(); });
   unitSel.addEventListener('change', () => { form.unitId = unitSel.value; form.lessonId = ''; fill(); });
-  lessonSel.addEventListener('change', () => { form.lessonId = lessonSel.value; renderSources(); });
+  lessonSel.addEventListener('change', () => { form.lessonId = lessonSel.value; renderSources(); renderPlan(); });
 
   const presetGrid = h('div', { class: 'preset-grid', role: 'radiogroup', 'aria-label': 'Preset de estudio' },
     STUDY_PRESETS.map((p) => h('label', { class: 'preset-chip' },
-      h('input', { type: 'radio', name: 'preset', value: p.id, checked: p.id === form.preset, onChange: () => { form.preset = p.id; } }),
+      h('input', { type: 'radio', name: 'preset', value: p.id, checked: p.id === form.preset, onChange: () => { form.preset = p.id; renderPlan(); } }),
       h('span', { class: 'preset-body' },
         h('span', { class: 'preset-icon' }, p.icon),
         h('span', {}, h('strong', {}, p.label), h('small', {}, p.desc))))));
 
     const modeGrid = h('div', { class: 'mode-grid', role: 'radiogroup', 'aria-label': 'Modo de guía' },
     GUIDE_MODES.map((m) => h('label', { class: 'mode-chip' },
-      h('input', { type: 'radio', name: 'mode', value: m.id, checked: m.id === form.mode, onChange: () => { form.mode = m.id; } }),
+      h('input', { type: 'radio', name: 'mode', value: m.id, checked: m.id === form.mode, onChange: () => { form.mode = m.id; renderPlan(); } }),
       h('span', { class: 'mode-body' }, h('span', { class: 'mode-icon' }, m.icon), h('strong', {}, m.label), h('small', {}, m.desc)))));
 
-  const depthSel = h('select', { 'aria-label': 'Profundidad', onChange: (e) => { form.depth = e.target.value; } },
+  const depthSel = h('select', { 'aria-label': 'Profundidad', onChange: (e) => { form.depth = e.target.value; renderPlan(); } },
     DEPTHS.map((d) => h('option', { value: d.id, selected: d.id === form.depth }, d.label)));
   const mnem = h('input', { type: 'checkbox', checked: true, onChange: (e) => { form.mnemonics = e.target.checked; } });
   const summ = h('input', { type: 'checkbox', checked: true, onChange: (e) => { form.summary = e.target.checked; } });
@@ -354,6 +438,10 @@ function createView(query = '') {
       h('div', {}, h('h2', {}, 'Cómo quieres estudiar'), h('p', { class: 'muted' }, 'El preset cambia la estructura de la guía según la asignatura.')),
       presetGrid),
     h('div', { class: 'card form-grid' }, h('h2', {}, 'Modo de guía'), modeGrid),
+    h('div', { class: 'card form-grid brain-plan-card' },
+      h('h2', {}, '🧠 Plan de contexto antes de gastar API'),
+      h('p', { class: 'muted' }, 'Study Paws decide primero qué Brain usar, qué fuentes priorizar, cuánto contexto pesa y si conviene dividirlo.'),
+      planBox),
     h('div', { class: 'card form-grid' },
       h('h2', {}, 'Opciones'),
       h('label', { class: 'field' }, 'Profundidad', depthSel),
@@ -464,6 +552,15 @@ function progressView() {
         days.map((d) => h('div', { class: 'week-col' },
           h('div', { class: 'week-bar' }, h('i', { style: `height:${(d.n / max) * 100}%` })),
           h('small', { class: 'muted' }, d.label))))),
+    h('div', { class: 'card form-grid' }, h('h2', {}, '🧠 Dominio multidimensional'),
+      (() => {
+        const k = averageKnowledge();
+        return h('div', { class: 'knowledge-summary' },
+          KNOWLEDGE_DIMENSIONS.map((d) =>
+            h('div', { class: 'mini-stat' },
+              h('b', {}, `${d.icon} ${Number(k[d.id] || 0).toFixed(1)}/4`),
+              h('small', { class: 'muted' }, d.label))));
+      })()),
     h('div', { class: 'card form-grid' }, h('h2', {}, 'Por materia'),
       subs.length ? subs.map((s) => {
         const x = subjectStats(s);
@@ -495,6 +592,9 @@ function settingsView() {
     deferredInstall ? h('div', { class: 'card form-grid' }, h('h2', {}, 'Instalar'),
       h('p', { class: 'muted' }, 'Instala Study Paws para abrirla como una app y usarla sin conexión.'),
       h('button', { class: 'btn', onClick: async () => { deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; render(); } }, '📲 Instalar app')) : null,
+    h('div', { class: 'card form-grid' }, h('h2', {}, '🐾 Study Paws Brain'),
+      h('p', {}, `Brain V${BRAIN_VERSION}: reglas globales + Interna materia + Interna práctica + Farmacología.`),
+      h('p', { class: 'muted' }, 'La futura IA recibirá solo el perfil y las fuentes necesarias para la tarea activa, no todo tu historial.')),
     h('div', { class: 'card form-grid' }, h('h2', {}, 'Tus datos'),
       h('p', { class: 'muted' }, 'Todo se guarda solo en este dispositivo. La copia de seguridad incluye materias, clases, guías y progreso, pero no los archivos adjuntos.'),
       usage,
@@ -509,7 +609,7 @@ function settingsView() {
           await resetAll(); go('#/'); toast('Datos borrados');
         }
       } }, '🗑️ Borrar todos los datos')),
-    h('p', { class: 'muted' }, 'Study Paws V0.3.1 · lectura local de DOCX · sin IA todavía.'));
+    h('p', { class: 'muted' }, 'Study Paws V0.4.0 · Brain + planificación de contexto · sin IA todavía.'));
 }
 
 /* ================= Router ================= */
