@@ -22,31 +22,60 @@ export const DEPTHS = [
 
 export const STUDY_PRESETS = [
   {
-    id: 'general', label: 'General', icon: '📚',
-    desc: 'Una guía equilibrada para cualquier asignatura.',
-    sections: ['Panorama general', 'Conceptos clave', 'Mecanismos', 'Aplicación', 'Resumen final']
+    id: 'interna_materia',
+    label: 'Medicina Interna · Materia',
+    icon: '🫀',
+    desc: 'Para certámenes: entender, integrar y defender el tema.',
+    sections: [
+      'Mapa general del tema',
+      'Fisiología y fisiopatología',
+      'Clínica explicada por mecanismos',
+      'Exámenes: qué pedir / para qué / qué cambia',
+      'Diagnóstico y diferenciales',
+      'Tratamiento: primera línea, dosis, vía e intervalo',
+      'Efectos adversos y contraindicaciones relevantes',
+      'Seguimiento y criterios de derivación',
+      'Trampas de certamen',
+      'Defensa de repreguntas'
+    ]
   },
   {
-    id: 'interna', label: 'Medicina Interna', icon: '🩺',
-    desc: 'De la fisiopatología a la conducta clínica.',
-    sections: ['Mapa general', 'Fisiopatología', 'Clínica por mecanismos', 'Exámenes: qué / para qué / qué cambia', 'Tratamiento', 'Seguimiento y derivación', 'Defensa de repreguntas']
+    id: 'interna_practica',
+    label: 'Medicina Interna · Práctica',
+    icon: '🩺',
+    desc: 'Para enfrentar pacientes, casos, ECG y preguntas del tutor.',
+    sections: [
+      'Problema clínico principal',
+      'Qué preguntar en la anamnesis',
+      'Qué buscar en el examen físico',
+      'Diagnósticos diferenciales prioritarios',
+      'Exámenes iniciales y cómo interpretarlos',
+      'Conducta inmediata',
+      'Tratamiento y monitorización',
+      'Signos de alarma',
+      'Qué podría preguntarme el tutor',
+      'Mini caso para practicar'
+    ]
   },
   {
-    id: 'fisiologia', label: 'Fisiología', icon: '🫀',
-    desc: 'Entender mecanismos, regulación e integración.',
-    sections: ['Concepto central', 'Mecanismo paso a paso', 'Regulación y variables', 'Gráficos / relaciones', 'Integración clínica', 'Errores frecuentes']
-  },
-  {
-    id: 'patologia', label: 'Patología', icon: '🔬',
-    desc: 'Mecanismo + morfología + correlación clínica.',
-    sections: ['Definición y mecanismo', 'Etiología', 'Patogenia', 'Morfología macroscópica', 'Morfología microscópica', 'Correlación clínica', 'Trampas y diferenciales']
-  },
-  {
-    id: 'farmacologia', label: 'Farmacología', icon: '💊',
-    desc: 'Ordena mecanismo, uso seguro y datos de examen.',
-    sections: ['Mecanismo de acción', 'Indicaciones', 'Dosis / vía / intervalo', 'Farmacocinética', 'Efectos adversos', 'Contraindicaciones', 'Interacciones', 'Perlas de examen']
+    id: 'farmacologia',
+    label: 'Farmacología',
+    icon: '💊',
+    desc: 'Mecanismo, indicación, seguridad y uso clínico.',
+    sections: [
+      'Grupo farmacológico y mecanismo de acción',
+      'Indicaciones clínicas',
+      'Dosis / vía / intervalo',
+      'Inicio y duración de efecto',
+      'Farmacocinética y metabolismo',
+      'Efectos adversos',
+      'Contraindicaciones y precauciones',
+      'Interacciones importantes',
+      'Comparación con fármacos similares',
+      'Perlas y trampas de certamen'
+    ]
   }
-];
+]
 
 export const presetInfo = (id) => STUDY_PRESETS.find((p) => p.id === id) ?? STUDY_PRESETS[0];
 
@@ -67,7 +96,7 @@ const NOTE = '> 🧪 Contenido de demostración, generado sin IA. Cuando conecte
 
 const builders = {
   complete: ({ topic, depth, options: o, preset }) => {
-    const route = (preset?.sections ?? presetInfo('general').sections)
+    const route = (preset?.sections ?? presetInfo('interna_materia').sections)
       .map((section, i) => `${i + 1}. **${section}** — aquí irá el desarrollo específico basado en tus fuentes.`);
     return [
       `# Guía completa: ${topic}`, NOTE,
