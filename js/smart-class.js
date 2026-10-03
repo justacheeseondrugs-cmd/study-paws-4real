@@ -147,9 +147,36 @@ export function buildSmartClassContext({
 export function alignSlidesWithTranscript(slideIndex,transcriptIndex,{maxTranscriptChunks=2}={}){
   if(!slideIndex||!transcriptIndex) return [];
   const out=[];
+  let cursor=0;
+
   for(const slide of slideIndex.chunks||[]){
     const q=[slide.title,slide.text].filter(Boolean).join(' ');
-    const matches=retrieveRelevantChunks([transcriptIndex],q,{maxResults:maxTranscriptChunks,maxPerSource:maxTranscriptChunks});
+    const candidates=retrieveRelevantChunks([transcriptIndex],q,{maxResults:8,maxPerSource:8});
+
+    // En una clase real la explicación suele avanzar junto con las slides.
+    // Permitimos retroceder un fragmento por solapamiento, pero favorecemos
+    // candidatos cercanos al último punto de la transcripción usado.
+    const forward=candidates.filter(m=>m.index>=Math.max(0,cursor-1));
+    const pool=forward.length?forward:candidates;
+    const ranked=pool.map(m=>{
+      const distance=Math.abs(m.index-cursor);
+      const proximityBoost=distance<=1?0.10:distance<=3?0.05:0;
+      const backwardPenalty=m.index<cursor-1?0.18:0;
+      return {m,adjusted:Number(m.score||0)+proximityBoost-backwardPenalty};
+    }).sort((a,b)=>b.adjusted-a.adjusted||a.m.index-b.m.index);
+
+    const best=ranked[0]?.m;
+    const selected=[];
+    if(best){
+      selected.push(best);
+      const adjacent=pool
+        .filter(m=>m.id!==best.id&&Math.abs(m.index-best.index)===1&&Number(m.score||0)>0)
+        .sort((a,b)=>b.score-a.score)[0];
+      if(adjacent&&selected.length<maxTranscriptChunks) selected.push(adjacent);
+      cursor=Math.max(cursor,best.index);
+    }
+
+    const matches=selected.slice(0,maxTranscriptChunks).sort((a,b)=>a.index-b.index);
     out.push({
       page:slide.page||slide.index+1,
       slideTitle:slide.title||`Diapositiva ${slide.page||slide.index+1}`,
