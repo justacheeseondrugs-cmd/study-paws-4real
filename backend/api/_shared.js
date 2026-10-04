@@ -13,7 +13,9 @@ const MODEL_RATES={
 const PRICING_AS_OF='2026-10-03';
 
 function modelRates(model){
-  return MODEL_RATES[model]||null;
+  if(MODEL_RATES[model]) return MODEL_RATES[model];
+  const key=Object.keys(MODEL_RATES).find(k=>String(model||'').startsWith(k));
+  return key?MODEL_RATES[key]:null;
 }
 function roughTokens(text=''){
   return Math.ceil(String(text).length/3.5);
