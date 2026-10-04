@@ -19,6 +19,7 @@ export function createGenerationJob(meta,blocks=[]){
       status:'pending',
       content:'',
       usage:null,
+      budget:null,
       error:'',
       responseId:'',
       payload:b
