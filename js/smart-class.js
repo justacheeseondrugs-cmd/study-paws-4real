@@ -244,6 +244,11 @@ export function buildSlideGenerationBlocks({
     blocks.push({
       label:`Diapositivas ${first}–${last}`,
       focus:`Explicar únicamente las diapositivas ${first} a ${last} respetando su orden.`,
+      visualRefs:slice.map(c=>({
+        fileId:slideIndex.fileId,
+        sourceName:slideIndex.name,
+        page:c.page||c.index+1
+      })),
       smartContext:{
         preset,
         mode:'slides',
