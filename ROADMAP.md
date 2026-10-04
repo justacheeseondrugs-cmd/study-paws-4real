@@ -15,7 +15,9 @@
 - [x] Constructor de paquete para futura IA
 
 ## Próxima prioridad
-- [ ] Backend seguro para IA
+- [x] Contrato + código de backend seguro para IA
+- [ ] Desplegar backend personal y cargar secretos
+- [x] Pipeline de generación reanudable por bloques preparado
 - [ ] Primera guía real: Farmacoterapia de IC
 - [x] Detección PPT/PDF + transcripción de la misma clase
 - [x] Índice local y recuperación selectiva
