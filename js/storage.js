@@ -10,9 +10,10 @@ const subs = new Set();
 
 const defaults = () => ({
   version: 1,
-  settings: { theme: 'auto', brainVersion: '1.0' },
+  settings: { theme: 'auto', brainVersion: '1.0', aiEndpoint: '' },
   subjects: [],
   guides: [],
+  generationJobs: [],
   knowledge: {},
   progress: { log: {} }
 });
@@ -26,6 +27,7 @@ function load() {
     return {
       ...d, ...data,
       settings: { ...d.settings, ...data.settings },
+      generationJobs: Array.isArray(data.generationJobs) ? data.generationJobs : [],
       knowledge: { ...d.knowledge, ...(data.knowledge || {}) },
       progress: { ...d.progress, ...data.progress }
     };
@@ -74,7 +76,7 @@ export function importData(json) {
     throw new Error('Archivo no válido');
   }
   const d = defaults();
-  state = { ...d, ...data, settings: { ...d.settings, ...data.settings }, knowledge: { ...d.knowledge, ...(data.knowledge || {}) }, progress: { ...d.progress, ...data.progress } };
+  state = { ...d, ...data, settings: { ...d.settings, ...data.settings }, generationJobs: Array.isArray(data.generationJobs) ? data.generationJobs : [], knowledge: { ...d.knowledge, ...(data.knowledge || {}) }, progress: { ...d.progress, ...data.progress } };
   persist();
   notify();
 }
@@ -82,6 +84,7 @@ export function importData(json) {
 export async function resetAll() {
   state = defaults();
   localStorage.removeItem(KEY);
+  localStorage.removeItem('studypaws:backend-access-token');
   try { await clearBlobs(); } catch { /* ignorar */ }
   notify();
 }
