@@ -2,13 +2,22 @@ const OPENAI_URL='https://api.openai.com/v1/responses';
 export const MAX_BODY_CHARS=350000;
 export const MAX_OUTPUT_TOKENS=3500;
 
-export function allowedOrigin(){
-  return String(process.env.ALLOWED_ORIGIN||'https://justacheeseondrugs-cmd.github.io').trim();
+export function allowedOrigins(){
+  const configured=String(process.env.ALLOWED_ORIGINS||process.env.ALLOWED_ORIGIN||'')
+    .split(',')
+    .map(x=>x.trim())
+    .filter(Boolean);
+  return new Set([
+    'https://justacheeseondrugs-cmd.github.io',
+    'https://study-paws-4real.vercel.app',
+    ...configured
+  ]);
 }
 export function setCors(req,res){
   const origin=String(req.headers.origin||'');
-  const allowed=allowedOrigin();
-  res.setHeader('Access-Control-Allow-Origin',origin===allowed?origin:allowed);
+  const allowed=allowedOrigins();
+  const fallback='https://study-paws-4real.vercel.app';
+  res.setHeader('Access-Control-Allow-Origin',allowed.has(origin)?origin:fallback);
   res.setHeader('Access-Control-Allow-Headers','Content-Type, X-Study-Paws-Token, X-Study-Paws-Client');
   res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
   res.setHeader('Vary','Origin');
