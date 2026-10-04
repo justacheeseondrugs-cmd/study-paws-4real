@@ -171,3 +171,18 @@ La PWA ya tiene preparada la ruta de IA real sin exponer la API key:
 - token del backend guardado aparte y excluido de los backups.
 
 El backend está en `backend/`. No contiene secretos reales.
+
+
+## Safe First Test V0.6.1
+
+Antes de permitir una generación completa diapositiva-por-diapositiva:
+
+- Study Paws obliga a ejecutar una prueba de **un solo bloque (slides 1–5)**;
+- realiza exactamente una llamada de generación;
+- muestra tokens de entrada, salida y total devueltos por la API;
+- no envía automáticamente las slides 6 en adelante;
+- conserva el resultado de la prueba;
+- la generación completa permanece bloqueada hasta que la usuaria revise el resultado y pulse **“Está bien — desbloquear clase completa”**;
+- el test puede repetirse y vuelve a bloquear la generación completa hasta una nueva aprobación.
+
+Esto reduce gasto accidental y permite validar el Brain y la calidad del prompt antes de procesar una clase completa.
