@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "study-paws-ai",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "vars": {
+    "ALLOWED_ORIGIN": "https://justacheeseondrugs-cmd.github.io",
+    "OPENAI_MODEL": "gpt-6.1-sol",
+    "REASONING_EFFORT": "medium"
+  }
+}
