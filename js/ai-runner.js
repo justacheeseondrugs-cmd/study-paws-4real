@@ -45,11 +45,12 @@ export async function resumeGeneration(jobId,{onProgress,signal}={}){
         status:'done',
         content:String(result.text||'').trim(),
         usage:result.usage||null,
+        budget:result.budget||null,
         responseId:result.responseId||'',
         model:result.model||'',
         payload:null
       });
-      onProgress?.({jobId,index:i,total:job.blocks.length,label:block.label,status:'done',usage:result.usage});
+      onProgress?.({jobId,index:i,total:job.blocks.length,label:block.label,status:'done',usage:result.usage,budget:result.budget});
     }catch(error){
       if(error?.name==='AbortError'){
         patchGenerationBlock(jobId,i,{status:'pending'});
