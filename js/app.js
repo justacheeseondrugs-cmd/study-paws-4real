@@ -6,8 +6,10 @@ import {
   addLesson, renameLesson, deleteLesson, toggleLessonDone
 } from './subjects.js';
 import { FILE_TYPES, typeInfo, attachFiles, setFileType, setSourceUse, removeFile, openFile, formatSize, extractAndStoreText, openExtractedText, buildSourcePayload, ensureLessonIndexes, buildLessonAlignments, getLessonAlignments } from './files.js';
-import { detectMaterialPairs } from './smart-class.js';
+import { detectMaterialPairs, buildSlideGenerationBlocks } from './smart-class.js';
 import { inspectContext, contextToMarkdown } from './context-inspector.js';
+import { isAiConfigured, getBackendAccessToken, setBackendAccessToken, testAiBackend } from './ai-client.js';
+import { runPreparedGeneration, resumeGeneration } from './ai-runner.js';
 import { SOURCE_USE, sourceUseInfo } from './source-policy.js';
 import { KNOWLEDGE_DIMENSIONS, getKnowledgeState, setKnowledgeDimension, averageKnowledge } from './knowledge-state.js';
 import { BRAIN_VERSION, inferPresetForSubject } from './brain.js';
@@ -496,7 +498,8 @@ function createView(query = '') {
   });
 
   const out = h('div', { class: 'view' });
-  const btn = h('button', { class: 'btn', type: 'button' }, '✨ Generar guía (demo)');
+  const aiReady = isAiConfigured();
+  const btn = h('button', { class: 'btn', type: 'button' }, aiReady ? '✨ Generar con IA' : '✨ Generar guía (demo)');
   const inspectBtn = h('button', { class: 'btn ghost', type: 'button' }, '👀 Ver contexto');
 
   inspectBtn.addEventListener('click', async () => {
@@ -533,15 +536,140 @@ function createView(query = '') {
     }
   });
 
+  let currentController = null;
+  let lastJobId = '';
+
+  async function prepareAiBlocks(subject, unit, lesson) {
+    const indexes = await ensureLessonIndexes(form.sid, form.unitId, form.lessonId, lesson.files || []);
+    const pairs = detectMaterialPairs(lesson.files || []);
+    let alignments = await getLessonAlignments(pairs);
+
+    if (pairs.length && alignments.length < pairs.length) {
+      const built = await buildLessonAlignments(form.sid, form.unitId, form.lessonId, pairs);
+      if (built.length) alignments = built;
+    }
+
+    if (form.mode === 'slides') {
+      const blocks = buildSlideGenerationBlocks({
+        files: lesson.files || [],
+        indexes,
+        alignments,
+        preset: form.preset,
+        blockSize: 5
+      });
+      if (!blocks.length) throw new Error('No encontré un PDF indexado por diapositivas para generar por bloques.');
+      return blocks;
+    }
+
+    const ctx = inspectContext({
+      subject, unit, lesson,
+      preset: form.preset, mode: form.mode, focus: form.focus,
+      files: lesson.files || [], indexes, alignments
+    });
+    if (!ctx.selected?.length) throw new Error('No encontré contexto legible para enviar a la IA.');
+    return [{ label: modeInfo(form.mode).label, focus: form.focus, smartContext: ctx }];
+  }
+
+  function renderAiProgress(info = {}) {
+    const total = Number(info.total || 1);
+    const index = Number(info.index || 0);
+    const done = info.status === 'done' ? index + 1 : index;
+    const pct = Math.max(0, Math.min(100, Math.round((done / total) * 100)));
+    const statusText = info.status === 'error'
+      ? `⚠️ Falló ${info.label || `bloque ${index + 1}`}`
+      : info.status === 'done'
+        ? `✅ ${info.label || `Bloque ${index + 1}`} guardado`
+        : `🐾 Generando ${info.label || `bloque ${index + 1}`}…`;
+
+    const stop = h('button', {
+      class: 'btn ghost small',
+      type: 'button',
+      onClick: () => currentController?.abort()
+    }, '⏸️ Detener');
+
+    out.replaceChildren(h('div', { class: 'card form-grid ai-progress-card' },
+      h('div', { class: 'row between wrap' },
+        h('div', {}, h('h2', {}, '✨ Study Paws está escribiendo'), h('p', { class: 'muted' }, statusText)),
+        h('span', { class: 'badge' }, `${Math.min(index + 1, total)}/${total}`)),
+      progressBar(pct),
+      h('p', { class: 'muted' }, 'Cada bloque terminado queda guardado. Si algo falla, continuamos desde ahí.'),
+      stop));
+  }
+
+  async function runAi(existingJobId = '') {
+    const subject = findSubject(form.sid);
+    const unit = findUnit(form.sid, form.unitId);
+    const lesson = findLesson(form.sid, form.unitId, form.lessonId);
+    if (!lesson) throw new Error('Elige una clase para generar con IA.');
+
+    currentController = new AbortController();
+    let result;
+    try {
+      if (existingJobId) {
+        result = await resumeGeneration(existingJobId, {
+          signal: currentController.signal,
+          onProgress: (p) => { lastJobId = p.jobId || existingJobId; renderAiProgress(p); }
+        });
+      } else {
+        const blocks = await prepareAiBlocks(subject, unit, lesson);
+        const meta = {
+          title: `${modeInfo(form.mode).label} · ${lesson.name}`,
+          mode: form.mode,
+          preset: form.preset,
+          depth: form.depth,
+          focus: form.focus,
+          options: { mnemonics: form.mnemonics, summary: form.summary },
+          subject: { id: subject.id, name: subject.name },
+          unit: unit ? { id: unit.id, name: unit.name } : null,
+          lesson: { id: lesson.id, name: lesson.name },
+          files: await buildSourcePayload(lesson.files || [])
+        };
+
+        result = await runPreparedGeneration({
+          meta,
+          blocks,
+          signal: currentController.signal,
+          onProgress: (p) => { lastJobId = p.jobId || lastJobId; renderAiProgress(p); }
+        });
+      }
+      showPreview(result);
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        out.replaceChildren(h('div', { class: 'card form-grid' },
+          h('h2', {}, '⏸️ Generación pausada'),
+          h('p', { class: 'muted' }, 'Los bloques terminados quedaron guardados.'),
+          h('button', { class: 'btn', onClick: () => runAi(lastJobId) }, '▶️ Continuar')));
+        return;
+      }
+      console.error(err);
+      out.replaceChildren(h('div', { class: 'card form-grid' },
+        h('h2', {}, '⚠️ La generación se detuvo'),
+        h('p', {}, err?.message || 'Ocurrió un error.'),
+        h('p', { class: 'muted' }, 'No se perdieron los bloques que ya terminaron.'),
+        lastJobId
+          ? h('button', { class: 'btn', onClick: () => runAi(lastJobId) }, '🔁 Reintentar desde el bloque fallido')
+          : null));
+    } finally {
+      currentController = null;
+    }
+  }
+
   btn.addEventListener('click', async () => {
     btn.disabled = true;
-    btn.textContent = 'Escribiendo… 🐾';
     try {
+      if (isAiConfigured()) {
+        btn.textContent = 'Preparando contexto… 🐾';
+        await runAi();
+        return;
+      }
+
+      btn.textContent = 'Escribiendo… 🐾';
       const subject = findSubject(form.sid);
       const unit = findUnit(form.sid, form.unitId);
       const lesson = findLesson(form.sid, form.unitId, form.lessonId);
       const result = await generateGuide({
-        mode: form.mode, preset: form.preset, depth: form.depth, options: { mnemonics: form.mnemonics, summary: form.summary },
+        mode: form.mode, preset: form.preset, depth: form.depth,
+        options: { mnemonics: form.mnemonics, summary: form.summary },
         subject: { id: subject.id, name: subject.name },
         unit: unit ? { id: unit.id, name: unit.name } : null,
         lesson: lesson ? { id: lesson.id, name: lesson.name } : null,
@@ -550,10 +678,10 @@ function createView(query = '') {
       showPreview(result);
     } catch (err) {
       console.error(err);
-      toast('No se pudo generar la guía');
+      toast(err?.message || 'No se pudo generar la guía');
     } finally {
       btn.disabled = false;
-      btn.textContent = '✨ Generar guía (demo)';
+      btn.textContent = isAiConfigured() ? '✨ Generar con IA' : '✨ Generar guía (demo)';
     }
   });
 
@@ -580,7 +708,9 @@ function createView(query = '') {
   fill();
   return h('section', { class: 'view' },
     h('h1', {}, 'Crear guía'),
-    h('div', { class: 'banner' }, '🧪 Modo demo: todavía no hay IA conectada, así que el contenido es de ejemplo. Lo que ves aquí ya es el flujo final.'),
+    h('div', { class: 'banner' }, isAiConfigured()
+      ? '✨ IA configurada: Study Paws usará Brain + contexto seleccionado + generación reanudable por bloques.'
+      : '🧪 Modo demo: la arquitectura de IA ya está lista. Configura el backend en Ajustes para generar contenido real.'),
     h('div', { class: 'card form-grid' },
       h('div', { class: 'form-grid three' },
         h('label', { class: 'field' }, 'Materia', subjectSel),
@@ -749,6 +879,60 @@ function settingsView() {
     h('div', { class: 'card form-grid' }, h('h2', {}, '🐾 Study Paws Brain'),
       h('p', {}, `Brain V${BRAIN_VERSION}: reglas globales + Interna materia + Interna práctica + Farmacología.`),
       h('p', { class: 'muted' }, 'La futura IA recibirá solo el perfil y las fuentes necesarias para la tarea activa, no todo tu historial.')),
+    (() => {
+      const endpointInput = h('input', {
+        type: 'url',
+        value: getState().settings.aiEndpoint || '',
+        placeholder: 'https://study-paws-ai.tu-cuenta.workers.dev',
+        'aria-label': 'URL del backend de Study Paws'
+      });
+      const tokenInput = h('input', {
+        type: 'password',
+        value: getBackendAccessToken(),
+        placeholder: 'Token de acceso personal',
+        autocomplete: 'off',
+        'aria-label': 'Token de acceso personal del backend'
+      });
+      const status = h('p', { class: 'muted' },
+        isAiConfigured() ? '🟢 Backend configurado localmente.' : '⚪ Todavía en modo demo.');
+
+      const save = h('button', { class: 'btn ghost', type: 'button', onClick: () => {
+        const endpoint = endpointInput.value.trim().replace(/\/$/, '');
+        update((s) => { s.settings.aiEndpoint = endpoint; });
+        setBackendAccessToken(tokenInput.value);
+        status.textContent = endpoint && tokenInput.value.trim()
+          ? '🟢 Configuración guardada. Puedes probar la conexión.'
+          : '⚪ Configuración incompleta.';
+        toast('Configuración de IA guardada 🔐');
+      } }, '💾 Guardar configuración');
+
+      const test = h('button', { class: 'btn', type: 'button', onClick: async () => {
+        try {
+          test.disabled = true;
+          test.textContent = 'Probando…';
+          const endpoint = endpointInput.value.trim().replace(/\/$/, '');
+          update((s) => { s.settings.aiEndpoint = endpoint; });
+          setBackendAccessToken(tokenInput.value);
+          const r = await testAiBackend();
+          status.textContent = `🟢 Conectado · ${r.model || 'modelo configurado'}`;
+          toast('Backend conectado ✅');
+        } catch (e) {
+          status.textContent = `🔴 ${e.message}`;
+          toast(e.message || 'No se pudo conectar');
+        } finally {
+          test.disabled = false;
+          test.textContent = '🔌 Probar conexión';
+        }
+      } }, '🔌 Probar conexión');
+
+      return h('div', { class: 'card form-grid ai-settings-card' },
+        h('h2', {}, '✨ IA segura'),
+        h('p', { class: 'muted' }, 'La API key de OpenAI vive solo en el backend. Aquí guardas únicamente la URL del Worker y un token personal revocable. El token NO se incluye en tus backups.'),
+        h('label', { class: 'field' }, 'URL del backend', endpointInput),
+        h('label', { class: 'field' }, 'Token de acceso de Study Paws', tokenInput),
+        status,
+        h('div', { class: 'row gap wrap' }, save, test));
+    })(),
     h('div', { class: 'card form-grid' }, h('h2', {}, 'Tus datos'),
       h('p', { class: 'muted' }, 'Todo se guarda solo en este dispositivo. La copia de seguridad incluye materias, clases, guías y progreso, pero no los archivos adjuntos.'),
       usage,
@@ -763,7 +947,7 @@ function settingsView() {
           await resetAll(); go('#/'); toast('Datos borrados');
         }
       } }, '🗑️ Borrar todos los datos')),
-    h('p', { class: 'muted' }, 'Study Paws V0.5.1 · Deep Alignment + Context Inspector · sin IA todavía.'));
+    h('p', { class: 'muted' }, 'Study Paws V0.6.0 · AI Pipeline seguro + generación reanudable.'));
 }
 
 /* ================= Router ================= */
