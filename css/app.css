@@ -465,3 +465,24 @@ body::before {
 @media (max-width: 620px) {
   .alignment-row { grid-template-columns: 1fr; }
 }
+
+
+/* ===== AI Pipeline V0.6 ===== */
+.ai-settings-card {
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 92%, var(--pink-soft));
+}
+.ai-progress-card {
+  position: relative;
+  overflow: hidden;
+}
+.ai-progress-card::after {
+  content: "✨";
+  position: absolute;
+  right: 14px;
+  top: 10px;
+  font-size: 2.8rem;
+  opacity: .08;
+  pointer-events: none;
+}
+.ai-progress-card .bar { min-height: 10px; }
