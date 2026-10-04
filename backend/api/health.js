@@ -1,4 +1,4 @@
-import { authorized,setCors } from './_shared.js';
+import { authorized,setCors,MAX_ESTIMATED_CALL_USD,MAX_OUTPUT_TOKENS,MAX_ESTIMATED_INPUT_TOKENS } from './_shared.js';
 
 export default async function handler(req,res){
   setCors(req,res);
@@ -9,6 +9,11 @@ export default async function handler(req,res){
     ok:true,
     service:'study-paws-ai',
     runtime:'vercel',
-    model:process.env.OPENAI_MODEL||'gpt-6.1-sol'
+    model:process.env.OPENAI_MODEL||'gpt-6.1-sol',
+    budgetGuard:{
+      perCallCapUsd:MAX_ESTIMATED_CALL_USD,
+      maxEstimatedInputTokens:MAX_ESTIMATED_INPUT_TOKENS,
+      maxOutputTokens:MAX_OUTPUT_TOKENS
+    }
   });
 }
