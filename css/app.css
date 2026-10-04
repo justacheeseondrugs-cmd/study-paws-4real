@@ -486,3 +486,33 @@ body::before {
   pointer-events: none;
 }
 .ai-progress-card .bar { min-height: 10px; }
+
+
+/* ===== Safe First Test V0.6.1 ===== */
+.safe-test-btn {
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 72%, var(--pink-soft));
+}
+.safe-test-banner {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed var(--line);
+  background: color-mix(in srgb, var(--paper) 78%, var(--pink-soft));
+  line-height: 1.45;
+}
+.usage-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+}
+.safe-approve-btn {
+  width: 100%;
+  font-weight: 800;
+}
+.ai-actions .btn[disabled] {
+  opacity: .55;
+  cursor: not-allowed;
+}
