@@ -186,3 +186,17 @@ Antes de permitir una generación completa diapositiva-por-diapositiva:
 - el test puede repetirse y vuelve a bloquear la generación completa hasta una nueva aprobación.
 
 Esto reduce gasto accidental y permite validar el Brain y la calidad del prompt antes de procesar una clase completa.
+
+
+## Budget Guard V0.6.2
+
+Study Paws protege el saldo compartido de API antes de generar:
+
+- tope duro del backend de **US$0.04 estimados por llamada**;
+- máximo aproximado de 15k tokens de entrada y 3.5k de salida por bloque;
+- el backend rechaza la llamada antes de OpenAI si supera ese límite;
+- la prueba segura muestra tokens y costo aproximado real devuelto por el backend;
+- para una clase completa se proyecta el costo usando el smoke test + 25% de margen;
+- tope local por clase: **US$0.25 estimados**;
+- si se supera, la generación completa queda bloqueada;
+- este guard no crea un saldo separado: evita gasto accidental de Study Paws sobre la misma cuenta que puede usar Inky Paws.
