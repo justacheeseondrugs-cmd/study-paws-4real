@@ -1,9 +1,9 @@
-// Study Paws service worker · V0.6.1
-const VERSION='v0.6.1';
+// Study Paws service worker · V0.6.2
+const VERSION='v0.6.2';
 const CACHE=`study-paws-${VERSION}`;
 const ASSETS=[
   './','./index.html','./manifest.webmanifest',
-  './css/app.css?v=0.6.1','./js/app.js?v=0.6.1',
+  './css/app.css?v=0.6.2','./js/app.js?v=0.6.2',
   './js/ui.js','./js/storage.js','./js/subjects.js','./js/files.js',
   './js/extract.js','./js/guides.js','./js/brain.js','./js/source-policy.js',
   './js/knowledge-state.js','./js/context-planner.js','./js/prompt-builder.js',
