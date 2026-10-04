@@ -516,3 +516,27 @@ body::before {
   opacity: .55;
   cursor: not-allowed;
 }
+
+
+/* ===== Budget Guard V0.6.2 ===== */
+.budget-mini-note {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px dashed var(--line);
+  background: color-mix(in srgb, var(--paper) 82%, var(--pink-soft));
+  line-height: 1.45;
+}
+.budget-guard-card {
+  padding: 13px 14px;
+  border-radius: 15px;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+.budget-guard-card.ok {
+  background: color-mix(in srgb, var(--paper) 92%, #dff5e5);
+}
+.budget-guard-card.blocked {
+  background: color-mix(in srgb, var(--paper) 88%, #ffe1e1);
+}
+.budget-guard-card p { margin: 0; }
