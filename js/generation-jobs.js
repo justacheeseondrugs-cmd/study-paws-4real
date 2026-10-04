@@ -25,7 +25,7 @@ export function createGenerationJob(meta,blocks=[]){
     })),
     currentBlock:0
   };
-  update(s=>{s.generationJobs||=[];s.generationJobs.unshift(job);});
+  update(s=>{s.generationJobs||=[];s.generationJobs.unshift(job);s.generationJobs=s.generationJobs.slice(0,8);});
   return job;
 }
 export const getGenerationJob=(id)=>getState().generationJobs?.find(j=>j.id===id)||null;
