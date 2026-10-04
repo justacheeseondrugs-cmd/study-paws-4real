@@ -1,0 +1,9 @@
+# Study Paws local secrets / tooling
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!backend/.dev.vars.example
+node_modules/
+.wrangler/
