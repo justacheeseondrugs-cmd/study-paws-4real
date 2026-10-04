@@ -1,7 +1,7 @@
 // Archivos adjuntos por clase. Metadatos en el estado, contenido en IndexedDB.
 import { update, newId, putBlob, getBlob, deleteBlob } from './storage.js';
 import { findLesson } from './subjects.js';
-import { extractTextFromFile, canExtractText } from './extract.js';
+import { extractTextFromFile, canExtractText, renderPdfPagesToImages } from './extract.js';
 import { buildDocumentIndex, INDEX_VERSION } from './study-retrieval.js';
 import { alignSlidesWithTranscript } from './smart-class.js';
 
@@ -148,6 +148,12 @@ export async function extractAndStoreText(sid, unitId, lessonId, fileId) {
     });
     throw err;
   }
+}
+
+export async function getPdfPageImages(fileId, pageNumbers = []) {
+  const blob = await getBlob(fileId);
+  if (!blob) throw new Error('PDF no encontrado');
+  return renderPdfPagesToImages(blob, pageNumbers);
 }
 
 export async function getExtractedText(fileId) {
