@@ -483,7 +483,7 @@ function createView(query = '') {
 
     const modeGrid = h('div', { class: 'mode-grid', role: 'radiogroup', 'aria-label': 'Modo de guía' },
     GUIDE_MODES.map((m) => h('label', { class: 'mode-chip' },
-      h('input', { type: 'radio', name: 'mode', value: m.id, checked: m.id === form.mode, onChange: () => { form.mode = m.id; renderPlan(); } }),
+      h('input', { type: 'radio', name: 'mode', value: m.id, checked: m.id === form.mode, onChange: () => { form.mode = m.id; renderPlan(); refreshAiButtons(); } }),
       h('span', { class: 'mode-body' }, h('span', { class: 'mode-icon' }, m.icon), h('strong', {}, m.label), h('small', {}, m.desc)))));
 
   const depthSel = h('select', { 'aria-label': 'Profundidad', onChange: (e) => { form.depth = e.target.value; renderPlan(); } },
@@ -499,8 +499,28 @@ function createView(query = '') {
 
   const out = h('div', { class: 'view' });
   const aiReady = isAiConfigured();
-  const btn = h('button', { class: 'btn', type: 'button' }, aiReady ? '✨ Generar con IA' : '✨ Generar guía (demo)');
+  const btn = h('button', { class: 'btn', type: 'button' });
+  const smokeBtn = h('button', { class: 'btn safe-test-btn', type: 'button' }, '🧪 Probar solo slides 1–5');
   const inspectBtn = h('button', { class: 'btn ghost', type: 'button' }, '👀 Ver contexto');
+
+  function smokePassed() {
+    return Boolean(getState().settings.aiSmokeTestPassed);
+  }
+
+  function refreshAiButtons() {
+    const guarded = aiReady && form.mode === 'slides' && !smokePassed();
+    btn.disabled = guarded;
+    btn.textContent = !aiReady
+      ? '✨ Generar guía (demo)'
+      : guarded
+        ? '🔒 Clase completa · aprueba primero la prueba'
+        : '✨ Generar con IA';
+    smokeBtn.hidden = !(aiReady && form.mode === 'slides');
+    smokeBtn.textContent = smokePassed()
+      ? '🧪 Repetir prueba slides 1–5'
+      : '🧪 Probar solo slides 1–5';
+  }
+  refreshAiButtons();
 
   inspectBtn.addEventListener('click', async () => {
     const subject = findSubject(form.sid);
@@ -596,6 +616,44 @@ function createView(query = '') {
       stop));
   }
 
+  function summarizeUsage(job) {
+    const blocks = job?.blocks || [];
+    let input = 0, output = 0, total = 0, cached = 0, reasoning = 0;
+    let model = '';
+    for (const b of blocks) {
+      const u = b.usage || {};
+      input += Number(u.input_tokens ?? u.prompt_tokens ?? 0);
+      output += Number(u.output_tokens ?? u.completion_tokens ?? 0);
+      total += Number(u.total_tokens ?? 0);
+      cached += Number(u.input_tokens_details?.cached_tokens ?? u.prompt_tokens_details?.cached_tokens ?? 0);
+      reasoning += Number(u.output_tokens_details?.reasoning_tokens ?? u.completion_tokens_details?.reasoning_tokens ?? 0);
+      if (!model && b.model) model = b.model;
+    }
+    if (!total) total = input + output;
+    return { input, output, total, cached, reasoning, model };
+  }
+
+  function usageCard(job, { smokeTest = false } = {}) {
+    if (!job) return null;
+    const u = summarizeUsage(job);
+    const stat = (value, label) => h('div', { class: 'mini-stat' },
+      h('b', {}, Number(value || 0).toLocaleString('es-CL')),
+      h('small', { class: 'muted' }, label));
+    return h('div', { class: 'usage-card' },
+      h('div', { class: 'row between wrap' },
+        h('strong', {}, smokeTest ? '🧪 Uso de esta única llamada' : '📊 Uso de IA'),
+        u.model ? h('span', { class: 'badge' }, u.model) : null),
+      h('div', { class: 'mini-stats' },
+        stat(u.input, 'tokens entrada'),
+        stat(u.output, 'tokens salida'),
+        stat(u.total, 'tokens totales'),
+        u.cached ? stat(u.cached, 'entrada cacheada') : null,
+        u.reasoning ? stat(u.reasoning, 'reasoning') : null),
+      smokeTest
+        ? h('p', { class: 'muted' }, '✅ Study Paws se detuvo aquí. No se enviaron las diapositivas 6–41.')
+        : null);
+  }
+
   async function runAi(existingJobId = '') {
     const subject = findSubject(form.sid);
     const unit = findUnit(form.sid, form.unitId);
@@ -659,10 +717,88 @@ function createView(query = '') {
     }
   }
 
+  smokeBtn.addEventListener('click', async () => {
+    smokeBtn.disabled = true;
+    smokeBtn.textContent = '🐾 Preparando prueba…';
+    lastJobId = '';
+
+    try {
+      const subject = findSubject(form.sid);
+      const unit = findUnit(form.sid, form.unitId);
+      const lesson = findLesson(form.sid, form.unitId, form.lessonId);
+      if (!lesson) throw new Error('Elige una clase para hacer la prueba.');
+      if (form.mode !== 'slides') throw new Error('La prueba segura está disponible en modo Diapositiva por diapositiva.');
+
+      const allBlocks = await prepareAiBlocks(subject, unit, lesson);
+      const firstBlock = allBlocks[0];
+      if (!firstBlock) throw new Error('No encontré las primeras diapositivas para probar.');
+
+      const meta = {
+        title: `Prueba IA · ${firstBlock.label} · ${lesson.name}`,
+        mode: form.mode,
+        preset: form.preset,
+        depth: form.depth,
+        focus: form.focus,
+        options: { mnemonics: form.mnemonics, summary: form.summary },
+        subject: { id: subject.id, name: subject.name },
+        unit: unit ? { id: unit.id, name: unit.name } : null,
+        lesson: { id: lesson.id, name: lesson.name },
+        smokeTest: true,
+        files: (lesson.files || []).map((f) => ({
+          name: f.name, type: f.type,
+          sourceUse: f.sourceUse || 'auto',
+          sourceNote: f.sourceNote || ''
+        }))
+      };
+
+      currentController = new AbortController();
+      const result = await runPreparedGeneration({
+        meta,
+        blocks: [firstBlock],
+        signal: currentController.signal,
+        onProgress: (p) => {
+          lastJobId = p.jobId || lastJobId;
+          renderAiProgress({ ...p, total: 1 });
+        }
+      });
+
+      const usage = summarizeUsage(result.job);
+      updateSilent((s) => {
+        s.settings.aiSmokeTestPassed = false;
+        s.settings.aiSmokeTestMeta = {
+          generatedAt: Date.now(),
+          lessonId: lesson.id,
+          block: firstBlock.label,
+          model: usage.model || '',
+          inputTokens: usage.input,
+          outputTokens: usage.output,
+          totalTokens: usage.total,
+          jobId: result.jobId
+        };
+      });
+
+      showPreview(result, { smokeTest: true });
+    } catch (err) {
+      console.error(err);
+      out.replaceChildren(h('div', { class: 'card form-grid' },
+        h('h2', {}, err?.name === 'AbortError' ? '⏸️ Prueba detenida' : '⚠️ La prueba no terminó'),
+        h('p', {}, err?.message || 'Ocurrió un error.'),
+        h('p', { class: 'muted' }, 'No se inició ningún bloque posterior.')));
+    } finally {
+      currentController = null;
+      smokeBtn.disabled = false;
+      refreshAiButtons();
+    }
+  });
+
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
       if (isAiConfigured()) {
+        if (form.mode === 'slides' && !smokePassed()) {
+          toast('Primero aprueba la prueba segura de slides 1–5 🧪');
+          return;
+        }
         btn.textContent = 'Preparando contexto… 🐾';
         await runAi();
         return;
@@ -686,11 +822,11 @@ function createView(query = '') {
       toast(err?.message || 'No se pudo generar la guía');
     } finally {
       btn.disabled = false;
-      btn.textContent = isAiConfigured() ? '✨ Generar con IA' : '✨ Generar guía (demo)';
+      refreshAiButtons();
     }
   });
 
-  function showPreview(result) {
+  function showPreview(result, { smokeTest = false } = {}) {
     const titleInput = h('input', { type: 'text', value: result.title, maxlength: 120, 'aria-label': 'Título de la guía' });
     const save = (status) => {
       const id = saveGuide({
@@ -700,11 +836,39 @@ function createView(query = '') {
       toast(status === 'draft' ? 'Borrador guardado 💾' : 'Guía guardada ✅');
       go(`#/guide/${id}`);
     };
+    const approve = smokeTest
+      ? h('button', { class: 'btn safe-approve-btn', onClick: () => {
+          const u = summarizeUsage(result.job);
+          updateSilent((s) => {
+            s.settings.aiSmokeTestPassed = true;
+            s.settings.aiSmokeTestMeta = {
+              ...(s.settings.aiSmokeTestMeta || {}),
+              approvedAt: Date.now(),
+              model: u.model || s.settings.aiSmokeTestMeta?.model || '',
+              inputTokens: u.input,
+              outputTokens: u.output,
+              totalTokens: u.total
+            };
+          });
+          refreshAiButtons();
+          approve.disabled = true;
+          approve.textContent = '✅ Prueba aprobada · clase completa desbloqueada';
+          toast('Generación completa desbloqueada 😻');
+        } }, '😻 Está bien — desbloquear clase completa')
+      : null;
+
     out.replaceChildren(h('div', { class: 'card form-grid' },
-      h('h2', {}, 'Vista previa'),
+      h('h2', {}, smokeTest ? '🧪 Resultado de la prueba segura' : 'Vista previa'),
+      smokeTest
+        ? h('div', { class: 'safe-test-banner' },
+            h('strong', {}, 'Solo se generaron las diapositivas 1–5.'),
+            h('span', {}, ' Revisa calidad, profundidad y formato antes de autorizar el resto.'))
+        : null,
+      usageCard(result.job, { smokeTest }),
       titleInput,
       h('article', { class: 'guide-paper', html: md(result.content) }),
-      h('div', { class: 'row gap' },
+      approve,
+      h('div', { class: 'row gap wrap' },
         h('button', { class: 'btn ghost', onClick: () => save('draft') }, '💾 Guardar borrador'),
         h('button', { class: 'btn', onClick: () => save('saved') }, '✅ Guardar guía'))));
     out.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -736,7 +900,7 @@ function createView(query = '') {
       h('label', { class: 'field' }, 'Enfoque o pregunta (opcional)', focusInput),
       h('label', { class: 'check' }, mnem, 'Incluir mnemotecnias'),
       h('label', { class: 'check' }, summ, 'Incluir resumen final')),
-    h('div', { class: 'row gap wrap' }, inspectBtn, btn), out);
+    h('div', { class: 'row gap wrap ai-actions' }, inspectBtn, smokeBtn, btn), out);
 }
 
 /* ---------- Guías guardadas ---------- */
@@ -952,7 +1116,7 @@ function settingsView() {
           await resetAll(); go('#/'); toast('Datos borrados');
         }
       } }, '🗑️ Borrar todos los datos')),
-    h('p', { class: 'muted' }, 'Study Paws V0.6.0 · AI Pipeline seguro + generación reanudable.'));
+    h('p', { class: 'muted' }, 'Study Paws V0.6.1 · Safe First Test + AI Pipeline seguro.'));
 }
 
 /* ================= Router ================= */
