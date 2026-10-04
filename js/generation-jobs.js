@@ -1,6 +1,6 @@
 // Estado reanudable de generaciones IA.
 // Cada bloque se guarda al terminar: si falla el bloque 6, no perdemos 1–5.
-import { getState, update, newId } from './storage.js';
+import { getState, updateSilent, newId } from './storage.js';
 
 export const JOB_STATUS={
   READY:'ready', RUNNING:'running', PAUSED:'paused', ERROR:'error', DONE:'done', CANCELLED:'cancelled'
@@ -25,20 +25,20 @@ export function createGenerationJob(meta,blocks=[]){
     })),
     currentBlock:0
   };
-  update(s=>{s.generationJobs||=[];s.generationJobs.unshift(job);s.generationJobs=s.generationJobs.slice(0,8);});
+  updateSilent(s=>{s.generationJobs||=[];s.generationJobs.unshift(job);s.generationJobs=s.generationJobs.slice(0,8);});
   return job;
 }
 export const getGenerationJob=(id)=>getState().generationJobs?.find(j=>j.id===id)||null;
 export const listGenerationJobs=()=>getState().generationJobs||[];
 
 export function patchGenerationJob(id,patch){
-  update(s=>{
+  updateSilent(s=>{
     const j=s.generationJobs?.find(x=>x.id===id);
     if(j){Object.assign(j,patch);j.updatedAt=Date.now();}
   });
 }
 export function patchGenerationBlock(id,index,patch){
-  update(s=>{
+  updateSilent(s=>{
     const j=s.generationJobs?.find(x=>x.id===id);
     const b=j?.blocks?.[index];
     if(b){Object.assign(b,patch);j.updatedAt=Date.now();}
