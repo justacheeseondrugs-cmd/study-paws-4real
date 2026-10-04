@@ -9,7 +9,7 @@
 
 const OPENAI_URL='https://api.openai.com/v1/responses';
 const MAX_BODY_CHARS=350000;
-const MAX_OUTPUT_TOKENS=5000;
+const MAX_OUTPUT_TOKENS=3500;
 
 function cors(origin,env){
   const allowed=String(env.ALLOWED_ORIGIN||'https://justacheeseondrugs-cmd.github.io').trim();
