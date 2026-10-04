@@ -622,7 +622,12 @@ function createView(query = '') {
           subject: { id: subject.id, name: subject.name },
           unit: unit ? { id: unit.id, name: unit.name } : null,
           lesson: { id: lesson.id, name: lesson.name },
-          files: await buildSourcePayload(lesson.files || [])
+          files: (lesson.files || []).map((f) => ({
+            name: f.name,
+            type: f.type,
+            sourceUse: f.sourceUse || 'auto',
+            sourceNote: f.sourceNote || ''
+          }))
         };
 
         result = await runPreparedGeneration({
