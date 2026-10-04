@@ -872,7 +872,7 @@ function createView(query = '') {
               outputTokens: u.output,
               totalTokens: u.total,
               approxCostUsd: u.approxCostUsd,
-              projectedFullClassUsd: u.approxCostUsd * 9 * FULL_CLASS_BUFFER
+              projectedFullClassUsd: u.approxCostUsd * Number(s.settings.aiSmokeTestMeta?.plannedBlocks || 9) * FULL_CLASS_BUFFER
             };
           });
           refreshAiButtons();
@@ -1160,7 +1160,7 @@ function settingsView() {
           await resetAll(); go('#/'); toast('Datos borrados');
         }
       } }, '🗑️ Borrar todos los datos')),
-    h('p', { class: 'muted' }, 'Study Paws V0.6.1 · Safe First Test + AI Pipeline seguro.'));
+    h('p', { class: 'muted' }, 'Study Paws V0.6.2 · Budget Guard + Safe First Test.'));
 }
 
 /* ================= Router ================= */
