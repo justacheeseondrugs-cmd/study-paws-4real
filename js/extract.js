@@ -120,3 +120,66 @@ export async function extractTextFromFile(file, name = file?.name || '') {
 
   throw new Error('Todavía no sé leer este formato. Prueba con PDF, DOCX, TXT o Markdown.');
 }
+
+
+/**
+ * Renderiza páginas concretas de un PDF como JPEG para visión multimodal.
+ * Se hace localmente en el navegador; solo las páginas solicitadas se envían al backend.
+ */
+export async function renderPdfPagesToImages(file, pageNumbers = [], {
+  maxWidth = 1100,
+  maxHeight = 900,
+  quality = 0.72
+} = {}) {
+  if (!file) throw new Error('PDF no encontrado');
+  const wanted = [...new Set((pageNumbers || []).map(Number).filter(n => Number.isInteger(n) && n > 0))].slice(0, 5);
+  if (!wanted.length) return [];
+
+  const pdfjs = await loadPdfJs();
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjs.getDocument({ data }).promise;
+  const out = [];
+
+  try {
+    for (const pageNumber of wanted) {
+      if (pageNumber > pdf.numPages) continue;
+      const page = await pdf.getPage(pageNumber);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(
+        maxWidth / Math.max(1, base.width),
+        maxHeight / Math.max(1, base.height),
+        2
+      );
+      const viewport = page.getViewport({ scale: Math.max(0.5, scale) });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(viewport.width));
+      canvas.height = Math.max(1, Math.round(viewport.height));
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (!ctx) throw new Error('No se pudo crear el lienzo para la diapositiva');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
+
+      let imageUrl = canvas.toDataURL('image/jpeg', quality);
+      // Evita payloads desproporcionados en PDFs muy complejos.
+      if (imageUrl.length > 360000) {
+        const smaller = document.createElement('canvas');
+        const ratio = Math.min(1, 850 / canvas.width);
+        smaller.width = Math.max(1, Math.round(canvas.width * ratio));
+        smaller.height = Math.max(1, Math.round(canvas.height * ratio));
+        const sctx = smaller.getContext('2d', { alpha: false });
+        sctx.fillStyle = '#ffffff';
+        sctx.fillRect(0, 0, smaller.width, smaller.height);
+        sctx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
+        imageUrl = smaller.toDataURL('image/jpeg', 0.64);
+        out.push({ page: pageNumber, imageUrl, width: smaller.width, height: smaller.height, mime: 'image/jpeg' });
+      } else {
+        out.push({ page: pageNumber, imageUrl, width: canvas.width, height: canvas.height, mime: 'image/jpeg' });
+      }
+      page.cleanup?.();
+    }
+  } finally {
+    await pdf.destroy?.();
+  }
+  return out;
+}
