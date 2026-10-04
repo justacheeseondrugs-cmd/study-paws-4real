@@ -499,6 +499,8 @@ function createView(query = '') {
 
   const out = h('div', { class: 'view' });
   const aiReady = isAiConfigured();
+  const STUDY_PAWS_CLASS_BUDGET_USD = 0.25;
+  const FULL_CLASS_BUFFER = 1.25;
   const btn = h('button', { class: 'btn', type: 'button' });
   const smokeBtn = h('button', { class: 'btn safe-test-btn', type: 'button' }, '🧪 Probar solo slides 1–5');
   const inspectBtn = h('button', { class: 'btn ghost', type: 'button' }, '👀 Ver contexto');
@@ -619,6 +621,7 @@ function createView(query = '') {
   function summarizeUsage(job) {
     const blocks = job?.blocks || [];
     let input = 0, output = 0, total = 0, cached = 0, reasoning = 0;
+    let approxCostUsd = 0, worstCaseUsd = 0;
     let model = '';
     for (const b of blocks) {
       const u = b.usage || {};
@@ -627,17 +630,20 @@ function createView(query = '') {
       total += Number(u.total_tokens ?? 0);
       cached += Number(u.input_tokens_details?.cached_tokens ?? u.prompt_tokens_details?.cached_tokens ?? 0);
       reasoning += Number(u.output_tokens_details?.reasoning_tokens ?? u.completion_tokens_details?.reasoning_tokens ?? 0);
+      approxCostUsd += Number(b.budget?.actualApproxUsd ?? 0);
+      worstCaseUsd += Number(b.budget?.estimatedWorstCaseUsd ?? 0);
       if (!model && b.model) model = b.model;
     }
     if (!total) total = input + output;
-    return { input, output, total, cached, reasoning, model };
+    return { input, output, total, cached, reasoning, model, approxCostUsd, worstCaseUsd };
   }
 
   function usageCard(job, { smokeTest = false } = {}) {
     if (!job) return null;
     const u = summarizeUsage(job);
+    const money = (value) => `US${Number(value || 0).toFixed(4)}`;
     const stat = (value, label) => h('div', { class: 'mini-stat' },
-      h('b', {}, Number(value || 0).toLocaleString('es-CL')),
+      h('b', {}, typeof value === 'string' ? value : Number(value || 0).toLocaleString('es-CL')),
       h('small', { class: 'muted' }, label));
     return h('div', { class: 'usage-card' },
       h('div', { class: 'row between wrap' },
@@ -648,7 +654,8 @@ function createView(query = '') {
         stat(u.output, 'tokens salida'),
         stat(u.total, 'tokens totales'),
         u.cached ? stat(u.cached, 'entrada cacheada') : null,
-        u.reasoning ? stat(u.reasoning, 'reasoning') : null),
+        u.reasoning ? stat(u.reasoning, 'reasoning') : null,
+        stat(money(u.approxCostUsd), 'costo aprox.')),
       smokeTest
         ? h('p', { class: 'muted' }, '✅ Study Paws se detuvo aquí. No se enviaron las diapositivas 6–41.')
         : null);
@@ -670,6 +677,19 @@ function createView(query = '') {
         });
       } else {
         const blocks = await prepareAiBlocks(subject, unit, lesson);
+
+        if (form.mode === 'slides') {
+          const smoke = getState().settings.aiSmokeTestMeta || {};
+          const smokeCost = Number(smoke.approxCostUsd || 0);
+          if (!smokeCost) {
+            throw new Error('No tengo un costo real de la prueba para estimar la clase completa. Repite el test 1–5.');
+          }
+          const projected = smokeCost * blocks.length * FULL_CLASS_BUFFER;
+          if (projected > STUDY_PAWS_CLASS_BUDGET_USD) {
+            throw new Error(`Budget Guard: la clase completa se estima en ~US${projected.toFixed(2)}, sobre el límite de US${STUDY_PAWS_CLASS_BUDGET_USD.toFixed(2)}. No se hará ninguna llamada.`);
+          }
+        }
+
         const meta = {
           title: `${modeInfo(form.mode).label} · ${lesson.name}`,
           mode: form.mode,
@@ -773,6 +793,9 @@ function createView(query = '') {
           inputTokens: usage.input,
           outputTokens: usage.output,
           totalTokens: usage.total,
+          approxCostUsd: usage.approxCostUsd,
+          projectedFullClassUsd: usage.approxCostUsd * allBlocks.length * FULL_CLASS_BUFFER,
+          plannedBlocks: allBlocks.length,
           jobId: result.jobId
         };
       });
@@ -847,7 +870,9 @@ function createView(query = '') {
               model: u.model || s.settings.aiSmokeTestMeta?.model || '',
               inputTokens: u.input,
               outputTokens: u.output,
-              totalTokens: u.total
+              totalTokens: u.total,
+              approxCostUsd: u.approxCostUsd,
+              projectedFullClassUsd: u.approxCostUsd * 9 * FULL_CLASS_BUFFER
             };
           });
           refreshAiButtons();
@@ -867,6 +892,22 @@ function createView(query = '') {
       usageCard(result.job, { smokeTest }),
       titleInput,
       h('article', { class: 'guide-paper', html: md(result.content) }),
+      smokeTest
+        ? (() => {
+            const u = summarizeUsage(result.job);
+            const planned = Number(getState().settings.aiSmokeTestMeta?.plannedBlocks || 9);
+            const projected = u.approxCostUsd * planned * FULL_CLASS_BUFFER;
+            const within = projected <= STUDY_PAWS_CLASS_BUDGET_USD;
+            if (!within && approve) {
+              approve.disabled = true;
+              approve.textContent = '🔒 Clase completa supera el presupuesto';
+            }
+            return h('div', { class: `budget-guard-card ${within ? 'ok' : 'blocked'}` },
+              h('strong', {}, within ? '💰 Budget Guard: dentro del límite' : '🛑 Budget Guard: clase completa bloqueada'),
+              h('p', {}, `Esta prueba costó aprox. US${u.approxCostUsd.toFixed(4)}. Con ${planned} bloques y un margen del 25%, la clase completa se estima en ~US${projected.toFixed(2)}.`),
+              h('p', { class: 'muted' }, `Límite de Study Paws para esta clase: US${STUDY_PAWS_CLASS_BUDGET_USD.toFixed(2)}. Este límite no separa físicamente tu saldo de Inky Paws; simplemente impide que Study Paws exceda este monto estimado por accidente.`));
+          })()
+        : null,
       approve,
       h('div', { class: 'row gap wrap' },
         h('button', { class: 'btn ghost', onClick: () => save('draft') }, '💾 Guardar borrador'),
@@ -900,6 +941,9 @@ function createView(query = '') {
       h('label', { class: 'field' }, 'Enfoque o pregunta (opcional)', focusInput),
       h('label', { class: 'check' }, mnem, 'Incluir mnemotecnias'),
       h('label', { class: 'check' }, summ, 'Incluir resumen final')),
+    aiReady ? h('div', { class: 'budget-mini-note' },
+      h('strong', {}, '💗 Modo rata inteligente activado'),
+      h('span', {}, ' · 1 llamada en la prueba · tope backend por llamada US$0.04 · tope estimado por clase US$0.25 · la clase completa sigue bloqueada hasta tu aprobación.')) : null,
     h('div', { class: 'row gap wrap ai-actions' }, inspectBtn, smokeBtn, btn), out);
 }
 
