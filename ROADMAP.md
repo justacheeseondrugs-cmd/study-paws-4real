@@ -32,3 +32,7 @@
 
 ## Parking Lot
 Si aparece una idea mientras estudias: anótala aquí y vuelve a estudiar. La idea no se pierde.
+
+- [x] Safe First Test: una sola llamada slides 1–5 + tokens + aprobación manual
+- [ ] Aprobar primera salida real de Farmacoterapia de IC
+- [ ] Ejecutar primera clase completa después de aprobación
