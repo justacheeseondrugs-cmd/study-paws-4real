@@ -1,5 +1,5 @@
 // Punto de entrada: tema, router y vistas.
-import { getState, subscribe, update, exportData, importData, resetAll, dayKey } from './storage.js';
+import { getState, subscribe, update, updateSilent, exportData, importData, resetAll, dayKey } from './storage.js';
 import {
   getSubjects, findSubject, findUnit, findLesson, lessonsOf, subjectStats, allStats,
   addSubject, renameSubject, deleteSubject, addUnit, renameUnit, deleteUnit,
@@ -903,7 +903,7 @@ function settingsView() {
 
       const save = h('button', { class: 'btn ghost', type: 'button', onClick: () => {
         const endpoint = endpointInput.value.trim().replace(/\/$/, '');
-        update((s) => { s.settings.aiEndpoint = endpoint; });
+        updateSilent((s) => { s.settings.aiEndpoint = endpoint; });
         setBackendAccessToken(tokenInput.value);
         status.textContent = endpoint && tokenInput.value.trim()
           ? '🟢 Configuración guardada. Puedes probar la conexión.'
@@ -916,7 +916,7 @@ function settingsView() {
           test.disabled = true;
           test.textContent = 'Probando…';
           const endpoint = endpointInput.value.trim().replace(/\/$/, '');
-          update((s) => { s.settings.aiEndpoint = endpoint; });
+          updateSilent((s) => { s.settings.aiEndpoint = endpoint; });
           setBackendAccessToken(tokenInput.value);
           const r = await testAiBackend();
           status.textContent = `🟢 Conectado · ${r.model || 'modelo configurado'}`;
