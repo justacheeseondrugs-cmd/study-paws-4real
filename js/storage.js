@@ -65,6 +65,11 @@ export function update(mutator) {
   persist();
   notify();
 }
+/** Guarda cambios internos sin forzar un re-render global (ej. progreso de generación por bloques). */
+export function updateSilent(mutator) {
+  mutator(state);
+  persist();
+}
 export function subscribe(cb) { subs.add(cb); return () => subs.delete(cb); }
 
 /* ---------- Copias de seguridad (solo datos, sin archivos adjuntos) ---------- */
