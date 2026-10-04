@@ -153,3 +153,21 @@ Smart Class ahora puede construir y guardar un mapa local:
 - mapa visible antes de gastar API;
 - Context Inspector prioriza la transcripción ya alineada con cada slide;
 - índices y alineaciones antiguos se regeneran automáticamente cuando cambia el algoritmo.
+
+
+## Secure AI Pipeline V0.6
+
+La PWA ya tiene preparada la ruta de IA real sin exponer la API key:
+
+- frontend público sin `OPENAI_API_KEY`;
+- backend Cloudflare Worker separado;
+- OpenAI Responses API;
+- token personal revocable para proteger el backend público;
+- generación por bloques de ~5 diapositivas;
+- guardado automático después de cada bloque;
+- detener / continuar / reintentar desde el bloque fallido;
+- Context Inspector y Smart Class antes de cada llamada;
+- trabajos recientes limitados y contexto completado descartado para no inflar localStorage;
+- token del backend guardado aparte y excluido de los backups.
+
+El backend está en `backend/`. No contiene secretos reales.
