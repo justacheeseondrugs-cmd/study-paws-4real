@@ -1,6 +1,7 @@
 // Orquestador reanudable: contexto local -> paquete -> backend -> guardado por bloque.
 import { requestAiGeneration } from './ai-client.js';
 import { buildPromptPackage } from './prompt-builder.js';
+import { getPdfPageImages } from './files.js';
 import {
   createGenerationJob,getGenerationJob,patchGenerationJob,patchGenerationBlock,
   combinedJobContent,JOB_STATUS
@@ -35,6 +36,29 @@ export async function resumeGeneration(jobId,{onProgress,signal}={}){
         smartContext:block.payload.smartContext,
         focus:block.payload.focus||job.meta.focus||''
       });
+
+      // Visión se resuelve justo antes de la llamada. El job solo guarda refs pequeñas.
+      const visualRefs=Array.isArray(block.payload.visualRefs)?block.payload.visualRefs:[];
+      if(visualRefs.length){
+        const byFile=new Map();
+        for(const ref of visualRefs){
+          if(!byFile.has(ref.fileId)) byFile.set(ref.fileId,[]);
+          byFile.get(ref.fileId).push(ref);
+        }
+        const images=[];
+        for(const [fileId,refs] of byFile){
+          const rendered=await getPdfPageImages(fileId,refs.map(r=>r.page));
+          for(const img of rendered){
+            const ref=refs.find(r=>Number(r.page)===Number(img.page));
+            images.push({
+              ...img,
+              sourceName:ref?.sourceName||'PDF',
+              label:`Diapositiva ${img.page}`
+            });
+          }
+        }
+        pkg.images=images;
+      }
       const result=await requestAiGeneration({
         requestId:`${jobId}:${i}`,
         block:{index:i,total:job.blocks.length,label:block.label},
