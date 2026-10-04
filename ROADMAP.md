@@ -36,3 +36,5 @@ Si aparece una idea mientras estudias: anótala aquí y vuelve a estudiar. La id
 - [x] Safe First Test: una sola llamada slides 1–5 + tokens + aprobación manual
 - [ ] Aprobar primera salida real de Farmacoterapia de IC
 - [ ] Ejecutar primera clase completa después de aprobación
+
+- [x] Budget Guard V0.6.2: tope por llamada + tope estimado por clase + costo visible
