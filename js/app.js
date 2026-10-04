@@ -422,6 +422,7 @@ function createView(query = '') {
     lessonSel.disabled = !unit;
     renderSources();
     renderPlan();
+    if (typeof refreshAiButtons === 'function') refreshAiButtons();
   }
 
   function renderPlan() {
@@ -472,11 +473,11 @@ function createView(query = '') {
   }
   subjectSel.addEventListener('change', () => { form.sid = subjectSel.value; form.unitId = ''; form.lessonId = ''; fill(); });
   unitSel.addEventListener('change', () => { form.unitId = unitSel.value; form.lessonId = ''; fill(); });
-  lessonSel.addEventListener('change', () => { form.lessonId = lessonSel.value; renderSources(); renderPlan(); });
+  lessonSel.addEventListener('change', () => { form.lessonId = lessonSel.value; renderSources(); renderPlan(); refreshAiButtons(); });
 
   const presetGrid = h('div', { class: 'preset-grid', role: 'radiogroup', 'aria-label': 'Preset de estudio' },
     STUDY_PRESETS.map((p) => h('label', { class: 'preset-chip' },
-      h('input', { type: 'radio', name: 'preset', value: p.id, checked: p.id === form.preset, onChange: () => { form.preset = p.id; renderPlan(); } }),
+      h('input', { type: 'radio', name: 'preset', value: p.id, checked: p.id === form.preset, onChange: () => { form.preset = p.id; renderPlan(); refreshAiButtons(); } }),
       h('span', { class: 'preset-body' },
         h('span', { class: 'preset-icon' }, p.icon),
         h('span', {}, h('strong', {}, p.label), h('small', {}, p.desc))))));
@@ -506,7 +507,15 @@ function createView(query = '') {
   const inspectBtn = h('button', { class: 'btn ghost', type: 'button' }, '👀 Ver contexto');
 
   function smokePassed() {
-    return Boolean(getState().settings.aiSmokeTestPassed);
+    const settings = getState().settings || {};
+    const meta = settings.aiSmokeTestMeta || {};
+    return Boolean(
+      settings.aiSmokeTestPassed &&
+      form.lessonId &&
+      meta.lessonId === form.lessonId &&
+      meta.mode === form.mode &&
+      meta.preset === form.preset
+    );
   }
 
   function refreshAiButtons() {
@@ -788,6 +797,8 @@ function createView(query = '') {
         s.settings.aiSmokeTestMeta = {
           generatedAt: Date.now(),
           lessonId: lesson.id,
+          mode: form.mode,
+          preset: form.preset,
           block: firstBlock.label,
           model: usage.model || '',
           inputTokens: usage.input,
