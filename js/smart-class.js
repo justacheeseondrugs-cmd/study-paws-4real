@@ -193,3 +193,71 @@ export function alignSlidesWithTranscript(slideIndex,transcriptIndex,{maxTranscr
   }
   return out;
 }
+
+
+export function buildSlideGenerationBlocks({
+  files=[], indexes=[], alignments=[], preset='interna_materia', blockSize=5
+}={}){
+  const slideIndex=indexes.find(idx=>SLIDE_TYPES.has(idx?.type)&&idx?.kind==='paged');
+  if(!slideIndex) return [];
+
+  const pairs=detectMaterialPairs(files);
+  const pair=pairs.find(p=>p.slideId===slideIndex.fileId);
+  const transcriptIndex=pair?indexes.find(idx=>idx?.fileId===pair.transcriptId):null;
+  const alignment=pair?alignments.find(a=>a?.slideId===pair.slideId&&a?.transcriptId===pair.transcriptId):null;
+  const slides=slideIndex.chunks||[];
+  const blocks=[];
+
+  for(let start=0;start<slides.length;start+=blockSize){
+    const slice=slides.slice(start,start+blockSize);
+    const selected=slice.map(c=>({
+      ...c,sourceName:slideIndex.name,sourceType:slideIndex.type,score:999
+    }));
+
+    if(transcriptIndex&&slice.length){
+      let related=[];
+      if(alignment?.items?.length){
+        const wantedPages=new Set(slice.map(s=>s.page||s.index+1));
+        const wantedChunks=new Set(
+          alignment.items
+            .filter(item=>wantedPages.has(item.page))
+            .flatMap(item=>item.transcriptMatches||[])
+            .filter(m=>m.confidence!=='baja')
+            .map(m=>m.chunk)
+        );
+        related=(transcriptIndex.chunks||[])
+          .filter(c=>wantedChunks.has(c.index+1))
+          .map(c=>({...c,sourceName:transcriptIndex.name,sourceType:transcriptIndex.type,score:998}));
+      }
+      if(!related.length){
+        const q=slice.map(c=>[c.title,c.text].filter(Boolean).join(' ')).join(' ');
+        related=retrieveRelevantChunks([transcriptIndex],q,{maxResults:4,maxPerSource:4});
+      }
+      selected.push(...related);
+    }
+
+    const dedup=[...new Map(selected.map(c=>[c.id||`${c.sourceName}:${c.index}:${c.page||''}`,c])).values()];
+    const first=slice[0]?.page||start+1;
+    const last=slice[slice.length-1]?.page||start+slice.length;
+    const selectedChars=dedup.reduce((n,c)=>n+String(c.text||'').length,0);
+
+    blocks.push({
+      label:`Diapositivas ${first}–${last}`,
+      focus:`Explicar únicamente las diapositivas ${first} a ${last} respetando su orden.`,
+      smartContext:{
+        preset,
+        mode:'slides',
+        strategy:alignment?'slide_block_aligned':'slide_block',
+        pairs,
+        selected:dedup,
+        selectedChars,
+        estimatedTokens:Math.ceil(selectedChars/4),
+        provenance:dedup.map(c=>({
+          sourceName:c.sourceName,sourceType:c.sourceType,page:c.page||null,
+          chunk:c.index+1,score:Number((c.score||0).toFixed(3))
+        }))
+      }
+    });
+  }
+  return blocks;
+}
