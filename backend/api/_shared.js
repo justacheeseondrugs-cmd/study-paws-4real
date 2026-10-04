@@ -1,6 +1,52 @@
 const OPENAI_URL='https://api.openai.com/v1/responses';
 export const MAX_BODY_CHARS=350000;
 export const MAX_OUTPUT_TOKENS=3500;
+export const MAX_ESTIMATED_INPUT_TOKENS=15000;
+export const MAX_ESTIMATED_CALL_USD=0.04;
+
+// Conservative short-context rates (USD / 1M tokens).
+// Uncached input uses cache-write price as a safety margin where applicable.
+const MODEL_RATES={
+  'gpt-6.1-sol':{input:1.25,cached:0.05,output:5.00},
+  'gpt-6-luna':{input:0.0625,cached:0.005,output:0.25}
+};
+const PRICING_AS_OF='2026-10-03';
+
+function modelRates(model){
+  return MODEL_RATES[model]||null;
+}
+function roughTokens(text=''){
+  return Math.ceil(String(text).length/3.5);
+}
+export function estimateRequestBudget(pkg,block,model){
+  const rates=modelRates(model);
+  if(!rates){
+    const err=new Error(`No hay tarifa segura configurada para ${model}; no se hará la llamada.`);
+    err.status=400; err.type='budget_model_unknown'; throw err;
+  }
+  const instructions=buildInstructions(pkg,block);
+  const input=buildInput(pkg);
+  const inputTokens=roughTokens(instructions)+roughTokens(input);
+  if(inputTokens>MAX_ESTIMATED_INPUT_TOKENS){
+    const err=new Error(`Contexto estimado demasiado grande: ~${inputTokens.toLocaleString('es-CL')} tokens.`);
+    err.status=413; err.type='budget_input_cap'; throw err;
+  }
+  const worstCaseUsd=(inputTokens*rates.input + MAX_OUTPUT_TOKENS*rates.output)/1_000_000;
+  if(worstCaseUsd>MAX_ESTIMATED_CALL_USD){
+    const err=new Error(`Budget Guard bloqueó la llamada: costo máximo estimado US${worstCaseUsd.toFixed(4)} supera el límite US${MAX_ESTIMATED_CALL_USD.toFixed(2)}.`);
+    err.status=429; err.type='budget_call_cap'; throw err;
+  }
+  return {inputTokens,worstCaseUsd,rates};
+}
+export function estimateActualCost(usage,model){
+  const rates=modelRates(model);
+  if(!rates||!usage) return null;
+  const input=Number(usage.input_tokens??usage.prompt_tokens??0);
+  const output=Number(usage.output_tokens??usage.completion_tokens??0);
+  const cached=Number(usage.input_tokens_details?.cached_tokens??usage.prompt_tokens_details?.cached_tokens??0);
+  const uncached=Math.max(0,input-cached);
+  return (uncached*rates.input + cached*rates.cached + output*rates.output)/1_000_000;
+}
 
 export function allowedOrigins(){
   const configured=String(process.env.ALLOWED_ORIGINS||process.env.ALLOWED_ORIGIN||'')
@@ -104,6 +150,7 @@ export async function callOpenAI(pkg,block){
   const apiKey=String(process.env.OPENAI_API_KEY||'');
   if(!apiKey) throw Object.assign(new Error('OPENAI_API_KEY no configurada en Vercel'),{status:500});
   const model=String(process.env.OPENAI_MODEL||'gpt-6.1-sol');
+  const guard=estimateRequestBudget(pkg,block,model);
   const payload={
     model,
     instructions:buildInstructions(pkg,block),
@@ -126,5 +173,20 @@ export async function callOpenAI(pkg,block){
   }
   const text=extractText(data);
   if(!text) throw Object.assign(new Error('El modelo no devolvió texto'),{status:502});
-  return {text,model:data?.model||model,responseId:data?.id||'',usage:data?.usage||null};
+  const resolvedModel=data?.model||model;
+  const actualApproxUsd=estimateActualCost(data?.usage,resolvedModel);
+  return {
+    text,
+    model:resolvedModel,
+    responseId:data?.id||'',
+    usage:data?.usage||null,
+    budget:{
+      pricingAsOf:PRICING_AS_OF,
+      perCallCapUsd:MAX_ESTIMATED_CALL_USD,
+      estimatedInputTokens:guard.inputTokens,
+      estimatedWorstCaseUsd:Number(guard.worstCaseUsd.toFixed(6)),
+      actualApproxUsd:actualApproxUsd==null?null:Number(actualApproxUsd.toFixed(6)),
+      maxOutputTokens:MAX_OUTPUT_TOKENS
+    }
+  };
 }
