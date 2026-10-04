@@ -10,7 +10,7 @@ const subs = new Set();
 
 const defaults = () => ({
   version: 1,
-  settings: { theme: 'auto', brainVersion: '1.0', aiEndpoint: '' },
+  settings: { theme: 'auto', brainVersion: '1.0', aiEndpoint: '', aiSmokeTestPassed: false, aiSmokeTestMeta: null },
   subjects: [],
   guides: [],
   generationJobs: [],
