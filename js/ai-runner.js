@@ -46,7 +46,8 @@ export async function resumeGeneration(jobId,{onProgress,signal}={}){
         content:String(result.text||'').trim(),
         usage:result.usage||null,
         responseId:result.responseId||'',
-        model:result.model||''
+        model:result.model||'',
+        payload:null
       });
       onProgress?.({jobId,index:i,total:job.blocks.length,label:block.label,status:'done',usage:result.usage});
     }catch(error){
